@@ -73,7 +73,7 @@ def create_lexicon(article_data):
 
 ### Main Program
 # File path for the CSV (Add path of your 20articles.csv file)
-csv_file = r'C:\Users\DELL\Desktop\University\Data Structures and Algorithms\Project\Implementation\Lexicon\20articles.csv'
+csv_file = r'20articles.csv'
 
 # Read the CSV file
 with open(csv_file, mode='r', newline='', encoding='utf-8') as file:
@@ -82,7 +82,7 @@ with open(csv_file, mode='r', newline='', encoding='utf-8') as file:
     lexicon = create_lexicon(article_data)
 
 # Save the lexicon to a JSON file (Add path of your lexicon.json file)
-lexicon_json_file = r'C:\Users\DELL\Desktop\Search-Engine-DSA\lexicon.json'
+lexicon_json_file = r'lexicon.json'
 with open(lexicon_json_file, 'w', encoding='utf-8') as file:
     json.dump(lexicon, file, ensure_ascii=False, indent=4)
 
