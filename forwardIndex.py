@@ -128,7 +128,7 @@ def save_forward_index_to_json(forward_index, filename):
             simplified_forward_index[doc_id][word_id] = [len(hits)] + hits  # First item is the number of hits, followed by the hits
 
     with open(filename, 'w', encoding='utf-8') as f:
-        json.dump(simplified_forward_index, f, ensure_ascii=False, indent=4)
+        json.dump(simplified_forward_index, f, ensure_ascii=False)
 
 # Load lexicon and documents from files
 lexicon = load_lexicon_from_json('lexicon.json')  # Update path as needed
