@@ -7,10 +7,10 @@ def create_inverted_index(forward_index):
 
     for doc_id, word_dict in forward_index.items():
         for word_id, hits in word_dict.items():
-            total_hits = hits[0]  #  total number of hits
+            total_hits = hits[0]  # First element is the total number of hits
             hit_list = hits[1:]  # The rest are the actual hits
             if total_hits > 0:  # Check if the word actually has hits
-                inverted_index[word_id][doc_id].extend(hit_list)  # Add all hits for this word in the document
+                inverted_index[word_id][doc_id] = [total_hits] + hit_list  # Add total_hits in front of the hit list
 
     # Convert defaultdict to regular dict for JSON serialization
     return {word_id: dict(doc_dict) for word_id, doc_dict in inverted_index.items()}
@@ -18,7 +18,7 @@ def create_inverted_index(forward_index):
 # Save the inverted index to a JSON file
 def save_inverted_index_to_json(inverted_index, filename):
     with open(filename, 'w', encoding='utf-8') as f:
-        json.dump(inverted_index, f, ensure_ascii=False, indent=4)
+        json.dump(inverted_index, f, ensure_ascii=False)  # Removed `indent=4`
 
 # Main program
 if __name__ == "__main__":
