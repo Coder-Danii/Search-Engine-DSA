@@ -17,21 +17,25 @@ stop_words = set(stopwords.words('english'))
 
 # Preprocess each word to standardize it for the lexicon
 def preprocess_word(word):
+    # Check if the word starts with 'www.' or ends with '.com', '.net', or '.org'
+    if re.search(r'^(www\.)|.*\.(com|net|org)$', word):  
+        return word
+
     word = re.sub(r'[^a-zA-Z0-9]', '', word)  # Remove non-alphabetic characters except digits
     word = word.lower()  # Convert to lowercase
 
-    # Check if the word is a digit, return it as is if true
+    # Check if the word is a digit, return it as a word
     if word.isdigit():
-        word = num2words(word)  # Convert number to words
+        word = num2words(word)
         return word
     
+    # Remove words having only 1 character
     if len(word) == 1:
-        return None  # Ignore single-character words
-    
-    if word and word not in stop_words:  # Remove stopwords and non-empty words
+        return None
+    if word and word not in stop_words:  # Remove stopwords and empty words
         # Perform lemmatization by considering word as a verb
         lemmatized_word = lemmatizer.lemmatize(word, pos="v")
-        # Only apply general lemmatization if needed
+        # Only apply lemmatization as noun if needed
         if lemmatized_word == word:
             lemmatized_word = lemmatizer.lemmatize(word)
         
@@ -39,7 +43,7 @@ def preprocess_word(word):
             return word  # Return the original word if it's a single letter
         
         return lemmatized_word
-    return None  # Return None for stopwords and unwanted words
+    return None
 
 # Function to load the lexicon from a JSON file
 def load_lexicon_from_json(filename):
@@ -71,7 +75,7 @@ def load_documents_from_csv(filename):
     return documents
 
 # Create the forward index dictionary
-forward_index = defaultdict(lambda: defaultdict(lambda: [0, 0, 0, 0]))  # [author, title, text, tag]
+forward_index = defaultdict(lambda: defaultdict(list))  # Store hits only
 
 # Function to process each document and update the forward index
 def create_forward_index(documents, lexicon):
@@ -92,17 +96,29 @@ def create_forward_index(documents, lexicon):
                 words = content.split()  # Split other fields (title, text, authors) into words
 
             # Update hitlist for each word in the lexicon
-            for word in words:
+            for position, word in enumerate(words):
                 processed_word = preprocess_word(word)
                 if processed_word:  # If the word is not None (not a stopword)
+                    is_reference = 1 if re.search(r'^(www\.)|.*\.(com|net|org)$', processed_word) else 0
+                    
                     if processed_word in lexicon:
                         word_id = lexicon[processed_word]
-                        forward_index[doc_id][word_id][field_index] += 1
+                        # Create a hit for the word
+                        hit = [field_index, is_reference, position]
+                        forward_index[doc_id][word_id].append(hit)  # Append the hit
 
 # Save the forward index to a JSON file
 def save_forward_index_to_json(forward_index, filename):
+    # Create a structure where each word has the total number of hits followed by the hits list
+    simplified_forward_index = defaultdict(dict)
+
+    for doc_id, word_dict in forward_index.items():
+        simplified_forward_index[doc_id] = {}
+        for word_id, hits in word_dict.items():
+            simplified_forward_index[doc_id][word_id] = [len(hits)] + hits  # First item is the number of hits, followed by the hits
+
     with open(filename, 'w', encoding='utf-8') as f:
-        json.dump(forward_index, f, ensure_ascii=False, indent=4)
+        json.dump(simplified_forward_index, f, ensure_ascii=False, indent=4)
 
 # Load lexicon and documents from files
 lexicon = load_lexicon_from_json('lexicon.json')  # Update path as needed
@@ -115,10 +131,8 @@ create_forward_index(documents, lexicon)
 def print_forward_index(forward_index):
     for doc_id, word_dict in forward_index.items():
         print(f"Document ID: {doc_id}")
-        for word_id, hitlist in word_dict.items():
-            # Here we will print the word instead of word_id
-            word = [w for w, w_id in lexicon.items() if w_id == word_id][0]  # Reverse lookup to get the word from word_id
-            print(f"  Word: {word}, Hitlist: {hitlist}")
+        for word_id, hits in word_dict.items():
+            print(f"  Word ID: {word_id}, Hits: {hits}")
         print("\n")
 
 print_forward_index(forward_index)  # Print the forward index
