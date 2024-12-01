@@ -28,8 +28,9 @@ def split_token(token):
 # Function to clean and preprocess words (lemmatization)
 def preprocess_word(word):
     # Check if the word ends with a domain suffix (e.g., .com, .org, .net)
-    if re.search(r'\.com$|\.org$|\.net$', word):  
-        return word
+    match= re.search(r'^(.+\..+\.(com|net|org)).*', word)
+    if match:
+        return match.group(1)
 
     word = re.sub(r'[^a-zA-Z0-9]', '', word)  # Remove non-alphabetic characters except digits
     word = word.lower()  # Convert to lowercase
