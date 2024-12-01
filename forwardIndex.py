@@ -18,8 +18,9 @@ stop_words = set(stopwords.words('english'))
 # Preprocess each word to standardize it for the lexicon
 def preprocess_word(word):
     # Check if the word starts with 'www.' or ends with '.com', '.net', or '.org'
-    if re.search(r'^(www\.)|.*\.(com|net|org)$', word):  
-        return word
+    match= re.search(r'^(.+\..+\.(com|net|org)).*', word)
+    if match:
+        return match.group(1)
 
     word = re.sub(r'[^a-zA-Z0-9]', '', word)  # Remove non-alphabetic characters except digits
     word = word.lower()  # Convert to lowercase
@@ -99,13 +100,22 @@ def create_forward_index(documents, lexicon):
             for position, word in enumerate(words):
                 processed_word = preprocess_word(word)
                 if processed_word:  # If the word is not None (not a stopword)
-                    is_reference = 1 if re.search(r'^(www\.)|.*\.(com|net|org)$', processed_word) else 0
+                    # Check if the word is a reference (URL)
+                    is_reference = 0
+                    match = re.search(r'^(.+\..+\.(com|net|org))$', processed_word)
+                    if match:
+                        is_reference = 1
                     
                     if processed_word in lexicon:
                         word_id = lexicon[processed_word]
                         # Create a hit for the word
                         hit = [field_index, is_reference, position]
-                        forward_index[doc_id][word_id].append(hit)  # Append the hit
+                        # Initialize the dictionary if not already present
+                        if word_id not in forward_index[doc_id]:
+                            forward_index[doc_id][word_id] = []
+                        # Append the hit
+                        forward_index[doc_id][word_id].append(hit)
+
 
 # Save the forward index to a JSON file
 def save_forward_index_to_json(forward_index, filename):
