@@ -83,9 +83,9 @@ def create_forward_index(documents, lexicon):
     for doc_id, doc in documents.items():
         # Process fields: title, text, authors, tags
         fields = {
-            'authors': doc['authors'],
-            'title': doc['title'],
-            'text': doc['text'],
+            'authors': doc['title'],
+            'title': doc['text'],
+            'text': doc['author'],
             'tags': doc['tags']
         }
 
@@ -131,8 +131,8 @@ def save_forward_index_to_json(forward_index, filename):
         json.dump(simplified_forward_index, f, ensure_ascii=False)
 
 # Load lexicon and documents from files
-lexicon = load_lexicon_from_json('lexicon.json')  # Update path as needed
-documents = load_documents_from_csv('20articles.csv')  # Update path as needed
+lexicon = load_lexicon_from_json(r'C:\Users\DELL\Desktop\Search-Engine-DSA\lexicon.json')  # Update path as needed
+documents = load_documents_from_csv(r'20articles_test.csv')  # Update path as needed
 
 # Populate the forward index with the documents
 create_forward_index(documents, lexicon)
@@ -148,6 +148,6 @@ def print_forward_index(forward_index):
 print_forward_index(forward_index)  # Print the forward index
 
 # Save the forward index to a JSON file
-save_forward_index_to_json(forward_index, 'forward_index.json')
+save_forward_index_to_json(forward_index, r'Search-Engine-DSA\forward_index.json')
 
 print("Forward index has been saved to 'forward_index.json'.")

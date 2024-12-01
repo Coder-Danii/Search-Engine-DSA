@@ -25,6 +25,26 @@ lemmatizer = WordNetLemmatizer()
 def split_token(token):
     return re.split(r'[-_/]', token)
 
+def lemmatize_with_pos(word):
+    # Try lemmatizing as verb
+    lemmatized_word = lemmatizer.lemmatize(word, pos="v")
+    if lemmatized_word != word:
+        return lemmatized_word
+
+    # Try lemmatizing as noun
+    lemmatized_word = lemmatizer.lemmatize(word, pos="n")
+    if lemmatized_word != word:
+        return lemmatized_word
+
+    # Try lemmatizing as adjective
+    lemmatized_word = lemmatizer.lemmatize(word, pos="a")
+    if lemmatized_word != word:
+        return lemmatized_word
+
+    # Try lemmatizing as adverb
+    lemmatized_word = lemmatizer.lemmatize(word, pos="r")
+    return lemmatized_word if lemmatized_word != word else word
+
 # Function to clean and preprocess words (lemmatization)
 def preprocess_word(word):
     # Check if the word ends with a domain suffix (e.g., .com, .org, .net)
@@ -44,11 +64,7 @@ def preprocess_word(word):
     if len(word) == 1:
         return None
     if word and word not in stop_words:  # Remove stopwords and empty words
-        # Perform lemmatization by considering word as a verb
-        lemmatized_word = lemmatizer.lemmatize(word, pos="v")
-        # Only apply lemmatization as noun if needed
-        if lemmatized_word == word:
-            lemmatized_word = lemmatizer.lemmatize(word)
+        lemmatized_word=lemmatize_with_pos(word)
         
         if len(lemmatized_word) == 1:  # Check if lemmatized word is a single letter
             return word  # Return the original word if it's a single letter
@@ -97,7 +113,7 @@ def create_lexicon(article_data, last_wordID, docs_read_lexicon, lexicon_file):
 
     for row in article_data:
         # Combine fields into a single text block
-        article_text = f"{row['title']} {row['tags']} {row['authors']} {row['text']}"
+        article_text = f"{row['title']} {row['text']} {row['authors']} {row['tags']}"
 
         # Tokenize the text
         words = word_tokenize(article_text)
@@ -107,6 +123,7 @@ def create_lexicon(article_data, last_wordID, docs_read_lexicon, lexicon_file):
             for sub_token in split_tokens:
                 clean_word = preprocess_word(sub_token)
                 if clean_word and clean_word not in lexicon:
+                    """Add a word to the lexicon if it's new."""
                     lexicon[clean_word] = word_id_counter
                     word_id_counter += 1  # Increment word ID only when a new word is added
 
