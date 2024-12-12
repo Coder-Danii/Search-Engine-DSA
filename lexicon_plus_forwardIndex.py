@@ -7,7 +7,7 @@ from collections import defaultdict
 from num2words import num2words
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-from nltk.tokenize import word_tokenize
+from decimal import Decimal
 import sys
 
 # Set the standard output encoding to UTF-8 (Windows compatibility)
@@ -54,6 +54,7 @@ def lemmatize_with_pos(word):
 
 # Function to clean and preprocess words (lemmatization)
 def preprocess_word(word):
+    print(word)
     # Check if the word ends with a domain suffix (e.g., .com, .org, .net)
     match= re.search(r'^(.+\..+\.(com|net|org)).*', word)
     if match:
@@ -64,6 +65,13 @@ def preprocess_word(word):
 
     # Check if the word is a digit, return it as a word
     if word.isdigit():
+        num = Decimal(word)  # Convert to a Decimal object for comparison
+        MAX_VALUE = Decimal("1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")
+        # Skip the number if it exceeds the maximum value
+        if num > MAX_VALUE:
+            return None
+        
+        # Convert number to words if it's within the limit
         word = num2words(word)
         return word
     
@@ -214,7 +222,7 @@ def process_article_data(article_data, lexicon_file, forward_file):
 
 ### Main Program ###
 def main():
-    csv_file = r'20articles.csv'
+    csv_file = r'C:\Users\DELL\Desktop\University\Data Structures and Algorithms\Project\Medium Articles\medium_articles.csv'
     lexicon_json_file = r'Search-Engine-DSA\lexicon.json'
     forward_json_file = r'Search-Engine-DSA\forward_index.json'
     track_file = r'Search-Engine-DSA\tracker.json'
