@@ -189,8 +189,16 @@ def process_article_data(article_data, lexicon_file, forward_file):
         fields = [('authors', row['authors']), ('title', row['title']), ('text', row['text']), ('tags', row['tags'])]
 
         for field_index, (field_name, content) in enumerate(fields):
-            words = content.split() if field_name != 'tags' else content  # Split content for non-tag fields
-
+            if field_name == 'tags':
+        # Split tags by commas or other delimiters
+                tags = content.split(',')  # Split tags by commas
+                tags = [tag.strip() for tag in tags]  # Remove extra spaces
+                words = []
+                for tag in tags:
+            # Split individual tags into words
+                    words.extend(tag.split())  # Split by spaces within each tag
+            else:
+                words = content.split()  # Split non-tag fields by spaces
             for position, word in enumerate(words):
                 split_tokens = split_token(word)
                 for sub_token in split_tokens:
