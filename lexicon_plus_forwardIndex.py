@@ -24,7 +24,7 @@ lemmatizer = WordNetLemmatizer()
 
 # Global variables
 word_id_counter = 0
-docs_read_lexicon = 0  # Global variable for docs read
+doc_id_counter = 0  # Global variable for docs read
 
 
 ### Helper Functions ###
@@ -54,7 +54,6 @@ def lemmatize_with_pos(word):
 
 # Function to clean and preprocess words (lemmatization)
 def preprocess_word(word):
-    print(word)
     # Check if the word ends with a domain suffix (e.g., .com, .org, .net)
     match= re.search(r'^(.+\..+\.(com|net|org)).*', word)
     if match:
@@ -76,7 +75,7 @@ def preprocess_word(word):
         return word
     
     # Remove words having only 1 character
-    if len(word) == 1:
+    if len(word) == 1 or len(word)>50:
         return None
     if word and word not in stop_words:  # Remove stopwords and empty words
         lemmatized_word=lemmatize_with_pos(word)
@@ -92,41 +91,38 @@ def create_hit(word_id, field_index, is_reference, position):
     """Create a hit (word location and reference info)."""
     return [field_index, is_reference, position]
 
-
-### File Operations ###
-def get_docs_read_and_last_wordID(track_file):
-    """Retrieve docs_read_lexicon and last_wordID from the tracker file."""
-    global docs_read_lexicon, word_id_counter
-    if os.path.exists(track_file) and os.stat(track_file).st_size > 0:
-        try:
-            with open(track_file, 'r', encoding='utf-8') as file:
-                data = json.load(file)
-                docs_read_lexicon = data.get('docs_read_lexicon', 0)
-                word_id_counter = data.get('last_wordID', 0)
-        except json.JSONDecodeError:
-            print(f"Error reading {track_file}. Using defaults.")
-
-
-def update_track_file(track_file):
-    """Update the tracker file with current doc and word ID states."""
-    global docs_read_lexicon
-    data = {'docs_read_lexicon': docs_read_lexicon, 'last_wordID': word_id_counter}
-    try:
-        with open(track_file, 'w', encoding='utf-8') as file:
-            json.dump(data, file, ensure_ascii=False)
-    except IOError:
-        print(f"Error writing to {track_file}.")
-
-
 def load_lexicon(lexicon_json_file):
-    """Load the lexicon from a JSON file."""
+    """Load the lexicon from a JSON file and return the last wordID."""
+    global word_id_counter
     if os.path.exists(lexicon_json_file):
         try:
             with open(lexicon_json_file, 'r', encoding='utf-8') as file:
-                return json.load(file)
+                lexicon = json.load(file)
+                if lexicon:  # Ensure lexicon is not empty
+                    word_id_counter = list(lexicon.values())[-1]  # Get the last wordID
+                    print(f"The last wordID in the lexicon is: {word_id_counter}")
+                return lexicon
         except json.JSONDecodeError:
             print(f"Error reading {lexicon_json_file}. Starting with an empty lexicon.")
     return {}
+
+def load_read_docs(doc_mapper_json):
+    """Load the doc mapper from a JSON file and return the last docID."""
+    global doc_id_counter
+    read_docs = {}
+    
+    if os.path.exists(doc_mapper_json):
+        try:
+            with open(doc_mapper_json, 'r', encoding='utf-8') as file:
+                read_docs = json.load(file)
+                if read_docs:  # Ensure the dictionary is not empty
+                    # Get the highest docID from the keys of the dictionary
+                    doc_id_counter = list(read_docs.keys())[-1]  # get the last docID assigned
+                    print(f"The last docID read is: {doc_id_counter}")
+        except json.JSONDecodeError:
+            print(f"Error reading {doc_mapper_json}. Starting with no read docs.")
+    
+    return read_docs
 
 def load_forward_index(forward_index_json_file):
     """Load the forward index from a JSON file."""
@@ -144,17 +140,26 @@ def load_forward_index(forward_index_json_file):
     return forward_index
 
 
-def save_lexicon(lexicon, lexicon_json_file):
+def save_lexicon(lexicon, lexicon_file):
     """Save the lexicon to a JSON file."""
     try:
-        with open(lexicon_json_file, 'w', encoding='utf-8') as file:
+        with open(lexicon_file, 'w', encoding='utf-8') as file:
             json.dump(lexicon, file, ensure_ascii=False)
-            print(f"Lexicon saved to {lexicon_json_file}.")
+            print(f"Lexicon saved to {lexicon_file}.")
     except IOError:
-        print(f"Error writing to {lexicon_json_file}.")
+        print(f"Error writing to {lexicon_file}.")
+
+def save_doc_mapper(read_docs, docMapper_file):
+    """Save the docID to URL mapping to a JSON file."""
+    try:
+        with open(docMapper_file, 'w', encoding='utf-8') as file:
+            json.dump(read_docs, file, ensure_ascii=False, indent=4)
+            print(f"Document mapper saved to {docMapper_file}.")
+    except IOError:
+        print(f"Error writing to {docMapper_file}.")
 
 
-def save_forward_index_to_json(forward_index, filename):
+def save_forward_index(forward_index, filename):
     """Save the forward index to a JSON file with hit count."""
     simplified_forward_index = defaultdict(dict)
     for doc_id, word_dict in forward_index.items():
@@ -164,7 +169,7 @@ def save_forward_index_to_json(forward_index, filename):
 
     try:
         with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(simplified_forward_index, f, ensure_ascii=False)
+            json.dump(simplified_forward_index, f, ensure_ascii=False, indent=4)
             print(f"Forward index saved to {filename}.")
     except IOError:
         print(f"Error writing to {filename}.")
@@ -175,76 +180,103 @@ def add_word_to_lexicon(word, lexicon):
     """Add a word to the lexicon if it's new."""
     global word_id_counter
     if word and word not in lexicon:
-        lexicon[word] = word_id_counter
         word_id_counter += 1
+        lexicon[word] = word_id_counter
     return lexicon
 
+def add_doc_to_docMapper(url, read_docs):
+    """Add a new docID and its associated URL to the docMapper if it's new."""
+    global doc_id_counter
+    
+    # Ensure doc_id_counter is an integer
+    doc_id_counter = int(doc_id_counter)
+    
+    doc_id_counter += 1  # Increment doc_id_counter to generate a new docID
+    read_docs[doc_id_counter] = url  # Map the new docID to the URL (no need to convert to str)
+    return read_docs
 
 
-def add_word_to_forward_index(docID, wordID, word_hit, forward_index):
+def add_word_to_forwardIndex(docID, wordID, word_hit, forward_index):
     """Add a word hit to the forward index."""
     forward_index[docID].setdefault(wordID, []).append(word_hit)
     return forward_index
 
-def process_article_data(article_data, lexicon_file, forward_file):
+def process_article_data(article_data, lexicon, forward_index, read_docs):
     """Process articles and update lexicon and forward index."""
-    global docs_read_lexicon
-    lexicon = load_lexicon(lexicon_file)
-    forward_index = defaultdict(lambda: defaultdict(list))  # Nested dictionary to store word hits
-    forward_index=load_forward_index(forward_file)
-
-    for docID, row in enumerate(article_data, start=docs_read_lexicon):
+    
+    for docID, row in enumerate(article_data, start=int(doc_id_counter)):
+        
+        # Convert url to string without wrapping it in a list
+        url = (row['url'])
+        
+        # Skip processing if URL is already in the read_docs
+        if url in read_docs.values():
+            print("Skipping already processed URL:", url)
+            continue
+        
+        # Add the document to the docMapper
+        read_docs = add_doc_to_docMapper(url, read_docs)
+        
         fields = [('authors', row['authors']), ('title', row['title']), ('text', row['text']), ('tags', row['tags'])]
-
+        
         for field_index, (field_name, content) in enumerate(fields):
-            words = content.split() if field_name != 'tags' else content  # Split content for non-tag fields
-
+            if field_name == 'tags':
+                # Split tags by commas or other delimiters
+                tags = content.split(',')  # Split tags by commas
+                tags = [tag.strip() for tag in tags]  # Remove extra spaces
+                words = []
+                for tag in tags:
+                # Split individual tags into words
+                    words.extend(tag.split())  # Split by spaces within each tag
+            else:
+                words = content.split()  # Split non-tag fields by spaces
             for position, word in enumerate(words):
                 split_tokens = split_token(word)
                 for sub_token in split_tokens:
-                    clean_word = preprocess_word(sub_token) # Ensure consistent preprocessing
+                    clean_word = preprocess_word(sub_token)  # Ensure consistent preprocessing
                     if clean_word:
-
                         lexicon = add_word_to_lexicon(clean_word, lexicon)
                         wordID = lexicon.get(clean_word)
+                        
                         # Check if the word is a reference (URL)
                         is_reference = 0
                         match = re.search(r'^(.+\..+\.(com|net|org))$', clean_word)
                         if match:
                             is_reference = 1
+                        
+                        # Create the hit and add to forward index
                         hit = create_hit(wordID, field_index, is_reference, position)
-                        forward_index = add_word_to_forward_index(docID, wordID, hit, forward_index)
-
-        docs_read_lexicon += 1
+                        forward_index = add_word_to_forwardIndex(docID, wordID, hit, forward_index)
 
     print(f"Processed {len(article_data)} articles.")
-    return lexicon, forward_index
+    return lexicon, forward_index, read_docs
+
 
 ### Main Program ###
 def main():
-    csv_file = r'C:\Users\DELL\Desktop\University\Data Structures and Algorithms\Project\Medium Articles\medium_articles.csv'
-    lexicon_json_file = r'Search-Engine-DSA\lexicon.json'
-    forward_json_file = r'Search-Engine-DSA\forward_index.json'
-    track_file = r'Search-Engine-DSA\tracker.json'
-
-    get_docs_read_and_last_wordID(track_file)
+    dataset_file = r'C:\Users\DELL\Desktop\20articles.csv'
+    lexicon_file = r'C:\Users\DELL\Desktop\Search-Engine-DSA\lexicon.json'
+    forwardIndex_file = r'C:\Users\DELL\Desktop\Search-Engine-DSA\forward_index.json'
+    docMapper_file= r'C:\Users\DELL\Desktop\Search-Engine-DSA\doc_mapper.json'
 
     # Read CSV file and process the remaining articles
-    with open(csv_file, mode='r', newline='', encoding='utf-8') as file:
+    with open(dataset_file, mode='r', newline='', encoding='utf-8') as file:
         reader = csv.DictReader(file)
-        for _ in range(docs_read_lexicon):
+        for _ in range(doc_id_counter):
             next(reader)  # Skip processed rows
         article_data = list(reader)  # Read remaining rows into article_data
 
     # Process the articles and update lexicon and forward index
-    lexicon, forward_index = process_article_data(article_data, lexicon_json_file, forward_json_file)
-
+    lexicon = load_lexicon(lexicon_file)
+    forward_index = defaultdict(lambda: defaultdict(list))  # Nested dictionary to store word hits
+    forward_index = load_forward_index(forwardIndex_file)
+    read_docs = load_read_docs(docMapper_file)
+    lexicon, forward_index, read_docs = process_article_data(article_data, lexicon, forward_index, read_docs)
+    
     # Save the updated lexicon and forward index
-    save_lexicon(lexicon, lexicon_json_file)
-    save_forward_index_to_json(forward_index, forward_json_file)
-
-    # Update the tracker file
-    update_track_file(track_file)
+    save_lexicon(lexicon, lexicon_file)
+    save_forward_index(forward_index, forwardIndex_file)
+    save_doc_mapper(read_docs, docMapper_file)
 
     print("Processing complete! Lexicon and forward index updated.")
 
