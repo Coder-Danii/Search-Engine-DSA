@@ -127,33 +127,52 @@ def load_read_docs(doc_mapper_json):
             # If no documents have been read yet, start from 1
     
     return read_docs
+def load_forward_barrels(barrel_directory):
+    """
+    Loads forward barrels from a directory containing CSV files into a structured data format.
 
-def load_forward_index(forwardIndex_file):
-    """Load the forward index from a CSV file"""
-    forward_index = defaultdict(lambda: defaultdict(list))  # Nested defaultdict to store word hits
+    Args:
+        barrel_directory (str): Path to the directory containing forward barrel CSV files.
 
-    if os.path.exists(forwardIndex_file):
-        try:
-            with open(forwardIndex_file, 'r', encoding='utf-8') as csvfile:
-                reader = csv.DictReader(csvfile)
+    Returns:
+        defaultdict: A nested defaultdict structure with the format:
+                     forward_barrels[barrel_number][docID][wordID] = [hit1, hit2, ...].
+    """
+    # Initialize the nested defaultdict structure for forward barrels
+    forward_barrels = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
 
-                # Populate the forward index with data from the CSV
-                for row in reader:
-                    docID = int(row['docID'])  # Convert docID to int
-                    wordID = int(row['wordID'])  # Convert wordID to int
-                    frequency = int(row['frequency'])  # Frequency from the CSV
-                    hits = json.loads(row['hitlist'])  # Convert hitlist string back to list
+    # Iterate through files in the directory
+    for filename in os.listdir(barrel_directory):
+        if filename.startswith('forward_barrel_') and filename.endswith('.csv'):
+            try:
+                # Extract barrel number from the filename
+                barrel_number = int(filename.split('_')[-1].split('.')[0])  
+                file_path = os.path.join(barrel_directory, filename)
+                
+                # Read the barrel CSV file
+                with open(file_path, 'r', encoding='utf-8') as csvfile:
+                    reader = csv.DictReader(csvfile)
                     
-                    # Validate frequency matches the hitlist length
-                    if frequency != len(hits):
-                        print(f"Warning: Frequency mismatch for docID {docID}, wordID {wordID}.")
+                    for row in reader:
+                        # Extract values from the row
+                        docID = int(row['docID'])
+                        wordID = int(row['wordID'])
+                        frequency = int(row['frequency'])
+                        hits = json.loads(row['hitlist'])  # Convert hitlist string to a list
+                        
+                        # Validate frequency matches the hitlist length
+                        if frequency != len(hits):
+                            print(f"Warning: Frequency mismatch in {filename} for docID {docID}, wordID {wordID}.")
+                        
+                        # Add hits to the barrels structure
+                        forward_barrels[barrel_number][docID][wordID].extend(hits)
 
-                    forward_index[docID][wordID] = hits
+                print(f"Loaded barrel {barrel_number} from {filename}.")
+            except (IOError, json.JSONDecodeError, ValueError, IndexError) as e:
+                print(f"Error loading {filename}: {e}. Skipping this file.")
 
-        except (IOError, json.JSONDecodeError, ValueError) as e:
-            print(f"Error reading {forwardIndex_file}: {e}. Starting with an empty forward index.")
-    
-    return forward_index
+    return forward_barrels
+
 
 def save_lexicon(lexicon, lexicon_file):
     """Save the lexicon to a JSON file."""
@@ -172,45 +191,15 @@ def save_doc_mapper(read_docs, docMapper_file):
             print(f"Document mapper saved to {docMapper_file}.")
     except IOError:
         print(f"Error writing to {docMapper_file}.")
-
-def save_forward_index(forward_index, filename):
-    try:
-        with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-            fieldnames = ['docID', 'wordID', 'frequency', 'hitlist']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            
-            # Write the header row
-            writer.writeheader()
-
-            # Iterate through the forward index to populate the CSV
-            for docID, words in forward_index.items():
-                for wordID, hits in words.items():
-                    # Frequency is the number of hits in the list
-                    frequency = len(hits)
-                    
-                    # Convert the hit list to a string
-                    hitlist_str = f"[{', '.join(map(str, hits))}]"
-
-                    writer.writerow({
-                        'docID': docID,
-                        'wordID': wordID,
-                        'frequency': frequency,
-                        'hitlist': hitlist_str
-                    })
-
-            print(f"Forward index saved to {filename}.")
-    except IOError as e:
-        print(f"Error writing to {filename}: {e}")
-
 # Save barrels to CSV
 
-def save_barrels(barrels):
+def save_forward_barrels(forward_barrels):
     """
     Saves the barrel data into separate CSV files for each barrel.
     Each row in the CSV includes: docID, wordID, frequency, hitlist.
     """
-    for barrel_number, doc_map in barrels.items():
-        barrel_file = f'barrel_{barrel_number}.csv'
+    for barrel_number, doc_map in forward_barrels.items():
+        barrel_file = f'forward_barrel_{barrel_number}.csv'
         try:
             with open(barrel_file, 'w', newline='', encoding='utf-8') as csvfile:
                 writer = csv.DictWriter(csvfile, fieldnames=['docID', 'wordID', 'frequency', 'hitlist'])
@@ -241,18 +230,14 @@ def add_word_to_lexicon(word, lexicon):
         word_id_counter += 1
     return lexicon
 
-def add_word_to_forwardIndex(docID, wordID, word_hit, forward_index):
-    """Add a word hit to the forward index."""
-    forward_index[docID].setdefault(wordID, []).append(word_hit)
-    return forward_index
 
-def add_word_to_forwardBarrels(docID, wordID, word_hit, barrels):
+def add_word_to_forwardBarrels(docID, wordID, word_hit, forward_barrels):
     # Determine which barrel the word belongs to based on wordID
     barrel_number = wordID // 1000  # Barrel range based on wordID
     wordID = wordID % 1000
-    barrels[barrel_number][docID].setdefault(wordID, []).append(word_hit)  # Add the hit to the barrel
+    forward_barrels[barrel_number][docID].setdefault(wordID, []).append(word_hit)  # Add the hit to the barrel
 
-    return barrels
+    return forward_barrels
 
 def add_doc_to_docMapper(url, read_docs):
     """Add a new docID and its associated URL to the docMapper if it's new."""
@@ -265,7 +250,7 @@ def add_doc_to_docMapper(url, read_docs):
     
     return read_docs
 
-def process_article_data(article_data, lexicon, forward_index, read_docs, forward_barrels):
+def process_article_data(article_data, lexicon, read_docs, forward_barrels):
     """
     Process articles and update lexicon, forward index, and barrels.
     Skip articles with URLs already present in read_docs.
@@ -308,18 +293,17 @@ def process_article_data(article_data, lexicon, forward_index, read_docs, forwar
                         
                         # Create the hit and add it to the forward index and barrel
                         hit = create_hit(wordID, field_index, is_reference, position)
-                        forward_index = add_word_to_forwardIndex(docID, wordID, hit, forward_index)
                         forward_barrels = add_word_to_forwardBarrels(docID, wordID, hit, forward_barrels)
         # Add the document to the docMapper
         read_docs = add_doc_to_docMapper(url, read_docs)
     print(f"Processed {len(article_data)} articles.")
-    return lexicon, forward_index, read_docs, forward_barrels
+    return lexicon, forward_barrels, read_docs
 
 def main():
-    dataset_file = r'20articles.csv'
+    dataset_file = r'C:\Users\DELL\Desktop\20articles.csv'
     lexicon_file = r'lexicon.json'
-    forwardIndex_file = r'forward_index.csv'
-    docMapper_file = r'docmapper.csv'
+    docMapper_file = r'docmapper.json'
+    barrel_directory=r'C:\Users\DELL\Desktop\Search-Engine-DSA'
     
     # Read CSV file and process all articles
     with open(dataset_file, mode='r', newline='', encoding='utf-8') as file:
@@ -328,21 +312,19 @@ def main():
 
     # Load the lexicon, forward index, and docMapper
     lexicon = load_lexicon(lexicon_file)
-    forward_index = defaultdict(lambda: defaultdict(list))  # Nested dictionary to store word hits
-    forward_index = load_forward_index(forwardIndex_file)
     read_docs = load_read_docs(docMapper_file)
-    barrels = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # Barrels dictionary to store wordID and hits by docID
+    forward_barrels = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # Barrels dictionary to store wordID and hits by docID
+    forward_barrels= load_forward_barrels(barrel_directory)
 
     # Process the articles and update lexicon, forward index, and barrels
-    lexicon, forward_index, read_docs, barrels = process_article_data(article_data, lexicon, forward_index, read_docs, barrels)
+    lexicon, barrels, read_docs = process_article_data(article_data, lexicon, read_docs, forward_barrels)
     
     # Save the updated lexicon, forward index, and barrels
     save_lexicon(lexicon, lexicon_file)
-    save_forward_index(forward_index, forwardIndex_file)
     save_doc_mapper(read_docs, docMapper_file)
-    save_barrels(barrels)
+    save_forward_barrels(barrels)
 
-    print("Processing complete! Lexicon, forward index, and barrels updated.")
+    print("Processing complete! Lexicon, forward barrels updated.")
 
 if __name__ == "__main__":
     main()
