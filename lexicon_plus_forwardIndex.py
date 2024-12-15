@@ -117,28 +117,43 @@ def load_read_docs(doc_mapper_json):
                 read_docs = json.load(file)
                 if read_docs:  # Ensure the dictionary is not empty
                     # Get the highest docID from the keys of the dictionary
-                    doc_id_counter = list(read_docs.keys())[-1]  # get the last docID assigned
-                    print(f"The last docID read is: {doc_id_counter}")
+                    doc_id_counter = list(read_docs.keys())[-1] # get the last docID assigned
+                    doc_id_counter = int(doc_id_counter)
+                    doc_id_counter+=1
+                    print(f"The last docID read is: {doc_id_counter-1}")
         except json.JSONDecodeError:
             print(f"Error reading {doc_mapper_json}. Starting with no read docs.")
+            # If no documents have been read yet, start from 1
+            doc_id_counter = 1
     
     return read_docs
 
-def load_forward_index(forward_index_json_file):
-    """Load the forward index from a JSON file."""
+def load_forward_index(forwardIndex_file):
+    """Load the forward index from a CSV file"""
     forward_index = defaultdict(lambda: defaultdict(list))  # Nested defaultdict to store word hits
-    if os.path.exists(forward_index_json_file):
-        try:
-            with open(forward_index_json_file, 'r', encoding='utf-8') as file:
-                forward_index_data = json.load(file)
-                # Populate forward_index with the loaded data
-                for docID, word_data in forward_index_data.items():
-                    for wordID, hits in word_data.items():
-                        forward_index[docID][wordID] = hits
-        except json.JSONDecodeError:
-            print(f"Error reading {forward_index_json_file}. Starting with an empty forward index.")
-    return forward_index
 
+    if os.path.exists(forwardIndex_file):
+        try:
+            with open(forwardIndex_file, 'r', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+
+                # Populate the forward index with data from the CSV
+                for row in reader:
+                    docID = int(row['docID'])  # Convert docID to int
+                    wordID = int(row['wordID'])  # Convert wordID to int
+                    frequency = int(row['frequency'])  # Frequency from the CSV
+                    hits = json.loads(row['hitlist'])  # Convert hitlist string back to list
+                    
+                    # Validate frequency matches the hitlist length
+                    if frequency != len(hits):
+                        print(f"Warning: Frequency mismatch for docID {docID}, wordID {wordID}.")
+
+                    forward_index[docID][wordID] = hits
+
+        except (IOError, json.JSONDecodeError, ValueError) as e:
+            print(f"Error reading {forwardIndex_file}: {e}. Starting with an empty forward index.")
+    
+    return forward_index
 
 def save_lexicon(lexicon, lexicon_file):
     """Save the lexicon to a JSON file."""
@@ -160,19 +175,33 @@ def save_doc_mapper(read_docs, docMapper_file):
 
 
 def save_forward_index(forward_index, filename):
-    """Save the forward index to a JSON file with hit count."""
-    simplified_forward_index = defaultdict(dict)
-    for doc_id, word_dict in forward_index.items():
-        simplified_forward_index[doc_id] = {}
-        for word_id, hits in word_dict.items():
-            simplified_forward_index[doc_id][word_id] = [len(hits)] + hits  # First item is the count of hits
-
     try:
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(simplified_forward_index, f, ensure_ascii=False, indent=4)
+        with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+            fieldnames = ['docID', 'wordID', 'frequency', 'hitlist']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            
+            # Write the header row
+            writer.writeheader()
+
+            # Iterate through the forward index to populate the CSV
+            for docID, words in forward_index.items():
+                for wordID, hits in words.items():
+                    # Frequency is the number of hits in the list
+                    frequency = len(hits)
+                    
+                    # Convert the hit list to a string
+                    hitlist_str = f"[{', '.join(map(str, hits))}]"
+
+                    writer.writerow({
+                        'docID': docID,
+                        'wordID': wordID,
+                        'frequency': frequency,
+                        'hitlist': hitlist_str
+                    })
+
             print(f"Forward index saved to {filename}.")
-    except IOError:
-        print(f"Error writing to {filename}.")
+    except IOError as e:
+        print(f"Error writing to {filename}: {e}")
 
 
 ### Lexicon and Indexing Logic ###
@@ -190,9 +219,9 @@ def add_doc_to_docMapper(url, read_docs):
     
     # Ensure doc_id_counter is an integer
     doc_id_counter = int(doc_id_counter)
-    
-    doc_id_counter += 1  # Increment doc_id_counter to generate a new docID
     read_docs[doc_id_counter] = url  # Map the new docID to the URL (no need to convert to str)
+    doc_id_counter += 1  # Increment doc_id_counter to generate a new docID
+    
     return read_docs
 
 
@@ -202,61 +231,62 @@ def add_word_to_forwardIndex(docID, wordID, word_hit, forward_index):
     return forward_index
 
 def process_article_data(article_data, lexicon, forward_index, read_docs):
-    """Process articles and update lexicon and forward index."""
+    """
+    Process articles and update lexicon and forward index.
+    Skip articles with URLs already present in read_docs.
+    """
+    global doc_id_counter  # Ensure doc_id_counter updates only for new documents
     
-    for docID, row in enumerate(article_data, start=int(doc_id_counter)):
-        
-        # Convert url to string without wrapping it in a list
-        url = (row['url'])
+    for row in article_data:
+        url = row['url']  # Extract URL of the article
         
         # Skip processing if URL is already in the read_docs
         if url in read_docs.values():
-            print("Skipping already processed URL:", url)
+            print(f"Skipping already processed URL: {url}")
             continue
         
-        # Add the document to the docMapper
-        read_docs = add_doc_to_docMapper(url, read_docs)
-        
-        fields = [('authors', row['authors']), ('title', row['title']), ('text', row['text']), ('tags', row['tags'])]
+        docID = doc_id_counter  # Use the most recently assigned docID
+
+        fields = [('authors', row['authors']), ('title', row['title']), 
+                  ('text', row['text']), ('tags', row['tags'])]
         
         for field_index, (field_name, content) in enumerate(fields):
             if field_name == 'tags':
-                # Split tags by commas or other delimiters
-                tags = content.split(',')  # Split tags by commas
-                tags = [tag.strip() for tag in tags]  # Remove extra spaces
+                tags = content.split(',')
+                tags = [tag.strip() for tag in tags]
                 words = []
                 for tag in tags:
-                # Split individual tags into words
-                    words.extend(tag.split())  # Split by spaces within each tag
+                    words.extend(tag.split())
             else:
-                words = content.split()  # Split non-tag fields by spaces
+                words = content.split()
+            
             for position, word in enumerate(words):
                 split_tokens = split_token(word)
                 for sub_token in split_tokens:
-                    clean_word = preprocess_word(sub_token)  # Ensure consistent preprocessing
+                    clean_word = preprocess_word(sub_token)
                     if clean_word:
                         lexicon = add_word_to_lexicon(clean_word, lexicon)
                         wordID = lexicon.get(clean_word)
                         
-                        # Check if the word is a reference (URL)
-                        is_reference = 0
-                        match = re.search(r'^(.+\..+\.(com|net|org))$', clean_word)
-                        if match:
-                            is_reference = 1
+                        # Check if the word is a reference (e.g., a URL)
+                        is_reference = 1 if re.search(r'^(.+\..+\.(com|net|org))$', clean_word) else 0
                         
-                        # Create the hit and add to forward index
+                        # Create the hit and add it to the forward index
                         hit = create_hit(wordID, field_index, is_reference, position)
                         forward_index = add_word_to_forwardIndex(docID, wordID, hit, forward_index)
-
+    
+        # Add the document to the docMapper
+        read_docs = add_doc_to_docMapper(url, read_docs)
     print(f"Processed {len(article_data)} articles.")
     return lexicon, forward_index, read_docs
+
 
 
 ### Main Program ###
 def main():
     dataset_file = r'C:\Users\DELL\Desktop\20articles.csv'
     lexicon_file = r'C:\Users\DELL\Desktop\Search-Engine-DSA\lexicon.json'
-    forwardIndex_file = r'C:\Users\DELL\Desktop\Search-Engine-DSA\forward_index.json'
+    forwardIndex_file = r'C:\Users\DELL\Desktop\Search-Engine-DSA\forward_index.csv'
     docMapper_file= r'C:\Users\DELL\Desktop\Search-Engine-DSA\doc_mapper.json'
 
     # Read CSV file and process the remaining articles
