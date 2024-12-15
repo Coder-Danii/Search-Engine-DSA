@@ -284,10 +284,10 @@ def process_article_data(article_data, lexicon, forward_index, read_docs):
 
 ### Main Program ###
 def main():
-    dataset_file = r'C:\Users\DELL\Desktop\20articles.csv'
-    lexicon_file = r'C:\Users\DELL\Desktop\Search-Engine-DSA\lexicon.json'
-    forwardIndex_file = r'C:\Users\DELL\Desktop\Search-Engine-DSA\forward_index.csv'
-    docMapper_file= r'C:\Users\DELL\Desktop\Search-Engine-DSA\doc_mapper.json'
+    dataset_file = r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\medium_articles.csv'
+    lexicon_file = r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\lexicon.json'
+    forwardIndex_file = r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\forward_index_test.csv'
+    docMapper_file= r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\doc_mapper.json'
 
     # Read CSV file and process the remaining articles
     with open(dataset_file, mode='r', newline='', encoding='utf-8') as file:
