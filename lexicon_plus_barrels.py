@@ -4,11 +4,13 @@ import os
 import csv
 import re
 from collections import defaultdict
-from num2words import num2words
+from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from decimal import Decimal
 import sys
+
+import pandas as pd
 
 # Set the standard output encoding to UTF-8 (Windows compatibility)
 sys.stdout.reconfigure(encoding='utf-8')
@@ -27,10 +29,26 @@ word_id_counter = 0
 doc_id_counter = 0  # Global variable for docs read
 
 
+# Define weights for each field
+weights = {
+    'title': 1,
+    'text': 2,
+    'tags': 3,
+    'authors': 0
+}
+
 ### Helper Functions ###
 # Function to split a token by special characters (hyphen, underscore, slash)
 def split_token(token):
     return re.split(r'[-_/]', token)
+
+def is_reference(word):
+    """Check if a word is a reference (URL-like) and return 1 for reference, 0 otherwise."""
+    match = re.search(r'^(.+\..+\.(com|net|org))$', word)
+    if match:
+        return 1  # It's a reference (e.g., URL with .com, .net, .org)
+    else:
+        return 0  # It's not a reference
 
 def lemmatize_with_pos(word):
     # Try lemmatizing as verb
@@ -55,24 +73,11 @@ def lemmatize_with_pos(word):
 # Function to clean and preprocess words (lemmatization)
 def preprocess_word(word):
     # Check if the word ends with a domain suffix (e.g., .com, .org, .net)
-    match= re.search(r'^(.+\..+\.(com|net|org)).*', word)
-    if match:
-        return match.group(1)
+    if (is_reference(word)):
+        return word
 
     word = re.sub(r'[^a-zA-Z0-9]', '', word)  # Remove non-alphabetic characters except digits
     word = word.lower()  # Convert to lowercase
-
-    # Check if the word is a digit, return it as a word
-    if word.isdigit():
-        num = Decimal(word)  # Convert to a Decimal object for comparison
-        MAX_VALUE = Decimal("1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")
-        # Skip the number if it exceeds the maximum value
-        if num > MAX_VALUE:
-            return None
-        
-        # Convert number to words if it's within the limit
-        word = num2words(word)
-        return word
     
     # Remove words having only 1 character
     if len(word) == 1 or len(word)>50:
@@ -234,7 +239,7 @@ def add_word_to_lexicon(word, lexicon):
 def add_word_to_forwardBarrels(docID, wordID, word_hit, forward_barrels):
     # Determine which barrel the word belongs to based on wordID
     barrel_number = wordID // 1000  # Barrel range based on wordID
-    wordID = wordID % 1000
+    wordID = wordID % 1000 
     forward_barrels[barrel_number][docID].setdefault(wordID, []).append(word_hit)  # Add the hit to the barrel
 
     return forward_barrels
@@ -250,14 +255,14 @@ def add_doc_to_docMapper(url, read_docs):
     
     return read_docs
 
-def process_article_data(article_data, lexicon, read_docs, forward_barrels):
+def process_article_data(data, lexicon, read_docs, forward_barrels):
     """
     Process articles and update lexicon, forward index, and barrels.
     Skip articles with URLs already present in read_docs.
     """
     global doc_id_counter  # Ensure doc_id_counter updates only for new documents
     
-    for row in article_data:
+    for index, row in data.iterrows():    
         url = row['url']  # Extract URL of the article
         
         # Skip processing if URL is already in the read_docs
@@ -267,49 +272,85 @@ def process_article_data(article_data, lexicon, read_docs, forward_barrels):
         
         docID = doc_id_counter  # Use the most recently assigned docID
 
-        fields = [('authors', row['authors']), ('title', row['title']), 
-                  ('text', row['text']), ('tags', row['tags'])]
+        # Block 1: Process Title
+        title_field = str(row['title'])  # Read the entire 'title' field
+        title_tokens = word_tokenize(title_field)  # Tokenize
+        for position, token in enumerate(title_tokens):
+            # Apply split_token and preprocess each token
+            split_tokens = split_token(token)
+            for split_word in split_tokens:
+                word = preprocess_word(split_word)
+                if word:
+                    if word not in lexicon:  # Check if the word is not already in the lexicon
+                        lexicon = add_word_to_lexicon(word, lexicon)
+                    wordID = lexicon.get(word)
+                    # Create the hit and add to forward index
+                    hit = create_hit(wordID, weights['title'], 0, position)
+                    forward_barrels = add_word_to_forwardBarrels(docID, wordID, hit, forward_barrels)
         
-        for field_index, (field_name, content) in enumerate(fields):
-            if field_name == 'tags':
-                tags = content.split(',')
-                tags = [tag.strip() for tag in tags]
-                words = []
-                for tag in tags:
-                    words.extend(tag.split())
-            else:
-                words = content.split()
-            
-            for position, word in enumerate(words):
-                split_tokens = split_token(word)
-                for sub_token in split_tokens:
-                    clean_word = preprocess_word(sub_token)
-                    if clean_word:
-                        
-                        lexicon = add_word_to_lexicon(clean_word, lexicon)
-                        wordID = lexicon.get(clean_word)
-                        # Check if the word is a reference (e.g., a URL)
-                        is_reference = 1 if re.search(r'^(.+\..+\.(com|net|org))$', clean_word) else 0
-                        
-                        # Create the hit and add it to the forward index and barrel
-                        hit = create_hit(wordID, field_index, is_reference, position)
-                        forward_barrels = add_word_to_forwardBarrels(docID, wordID, hit, forward_barrels)
+        # Block 2: Process Text
+        text_field = str(row['text'])  # Read the entire 'text' field
+        text_tokens = word_tokenize(text_field)  # Tokenize
+        for position, token in enumerate(text_tokens):
+            # Apply split_token and preprocess each token
+            split_tokens = split_token(token)
+            for split_word in split_tokens:
+                word = preprocess_word(split_word)
+                if word:
+                    if word not in lexicon:  # Check if the word is not already in the lexicon
+                        lexicon = add_word_to_lexicon(word, lexicon)
+                    wordID = lexicon.get(word)
+                    # Create the hit and add to forward index
+                    
+                    hit = create_hit(wordID, weights['text'], is_reference(word), position)
+                    forward_barrels = add_word_to_forwardBarrels(docID, wordID, hit, forward_barrels)
+
+        # Block 3: Process Tags
+        tags_field = str(row['tags'])  # Read the entire 'tags' field
+        tags_tokens = word_tokenize(tags_field)  # Tokenize
+        for position, token in enumerate(tags_tokens):
+            # Apply split_token and preprocess each token
+            split_tokens = split_token(token)
+            for split_word in split_tokens:
+                word = preprocess_word(split_word)
+                if word:
+                    if word not in lexicon:  # Check if the word is not already in the lexicon
+                        lexicon = add_word_to_lexicon(word, lexicon)
+                    wordID = lexicon.get(word)
+                    # Create the hit and add to forward index
+                    hit = create_hit(wordID, weights['tags'], 0, position)
+                    forward_barrels = add_word_to_forwardBarrels(docID, wordID, hit, forward_barrels)
+
+        # Block 4: Process Authors
+        authors_field = str(row['authors'])  # Read the entire 'authors' field
+        authors_tokens = word_tokenize(authors_field)  # Tokenize
+        for position, token in enumerate(authors_tokens):
+            # Apply split_token and preprocess each token
+            split_tokens = split_token(token)
+            for split_word in split_tokens:
+                word = preprocess_word(split_word)
+                if word:
+                    if word not in lexicon:  # Check if the word is not already in the lexicon
+                        lexicon = add_word_to_lexicon(word, lexicon)
+                    wordID = lexicon.get(word)
+                    # Create the hit and add to forward index
+                    hit = create_hit(wordID, weights['authors'], 0, position)
+                    forward_barrels = add_word_to_forwardBarrels(docID, wordID, hit, forward_barrels)
+        
         # Add the document to the docMapper
         read_docs = add_doc_to_docMapper(url, read_docs)
-    print(f"Processed {len(article_data)} articles.")
+
+    print(f"Processed {len(data)} articles.")
     return lexicon, forward_barrels, read_docs
 
 def main():
-    dataset_file = r'C:\Users\DELL\Desktop\20articles.csv'
+    dataset_file = r'C:\Users\DELL\Desktop\articles\20articles.csv'
     lexicon_file = r'lexicon.json'
     docMapper_file = r'docmapper.json'
     barrel_directory=r'C:\Users\DELL\Desktop\Search-Engine-DSA'
     
-    # Read CSV file and process all articles
-    with open(dataset_file, mode='r', newline='', encoding='utf-8') as file:
-        reader = csv.DictReader(file)
-        article_data = list(reader)  # Read all rows into article_data
-
+    article_data = pd.read_csv(dataset_file, encoding='utf-8')  # Ensure UTF-8 encoding
+    
     # Load the lexicon, forward index, and docMapper
     lexicon = load_lexicon(lexicon_file)
     read_docs = load_read_docs(docMapper_file)
