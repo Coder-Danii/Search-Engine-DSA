@@ -16,7 +16,7 @@ def create_inverted_barrel(forward_barrel_file, inverted_barrel_file):
             # Extract values from the forward barrel row
             doc_id = int(row['docID'])
             word_id = int(row['wordID'])
-            hitlist = eval(row['hitlist'])  # Convert the hitlist string back to a Python list
+            hitlist = [tuple(map(int, hit.split(", "))) for hit in row['hitlist'].split(";")]
             frequency = len(hitlist)  # Calculate frequency from hits
             
             # Add entry to the inverted index
@@ -27,17 +27,18 @@ def create_inverted_barrel(forward_barrel_file, inverted_barrel_file):
         fieldnames = ['wordID', 'docID', 'frequency', 'hitlist']
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
-        
         for word_id, doc_dict in inverted_index.items():
             for doc_id, data in doc_dict.items():
                 frequency = data[0]
                 hitlist = data[1:]  # The rest are actual hits
+                hitlist_str = ";".join([f"{hit[0]}, {hit[1]}" for hit in hitlist])  # Fixed here
                 writer.writerow({
                     'wordID': word_id,
                     'docID': doc_id,
                     'frequency': frequency,
-                    'hitlist': str(hitlist)
+                    'hitlist': hitlist_str  # Corrected to use hitlist_str
                 })
+
 
     print(f"Inverted barrel has been saved to '{inverted_barrel_file}'.")
 
@@ -61,7 +62,7 @@ def create_inverted_barrels(forward_barrels_dir, inverted_barrels_dir):
 
 # Main program
 if __name__ == "__main__":
-    forward_barrels_dir = r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA'  # Directory containing forward barrels
-    inverted_barrels_dir = r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA'  # Directory to save inverted barrels
+    forward_barrels_dir = r'C:\Users\DELL\Desktop\Search-Engine-DSA'  # Directory containing forward barrels
+    inverted_barrels_dir = r'C:\Users\DELL\Desktop\Search-Engine-DSA'  # Directory to save inverted barrels
 
     create_inverted_barrels(forward_barrels_dir, inverted_barrels_dir)
