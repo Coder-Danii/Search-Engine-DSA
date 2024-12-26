@@ -7,7 +7,6 @@ from collections import defaultdict
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-from decimal import Decimal
 import sys
 
 import pandas as pd
@@ -205,7 +204,7 @@ def save_forward_barrels(forward_barrels):
                 for docID, word_hits in doc_map.items():
                     for wordID, hits in word_hits.items():
                         frequency = len(hits)  # Frequency is the number of hits in the list
-                        hitlist_str = ";".join([f"{hit[0]}, {hit[1]}" for hit in hits])
+                        hitlist_str = "|".join([f"{hit[0]}, {hit[1]}" for hit in hits])
                         # Convert hits to a string
                         writer.writerow({
                             'docID': docID,
@@ -335,6 +334,8 @@ def process_article_data(data, lexicon, read_docs, forward_barrels):
 
     print(f"Processed {len(data)} articles.")
     return lexicon, forward_barrels, read_docs
+
+
 
 def main():
     dataset_file = r'C:\Users\DELL\Desktop\articles\20articles.csv'
