@@ -1,5 +1,6 @@
 import csv
 import os
+import struct
 
 def load_forward_barrel(forward_barrel_file):
     """
@@ -23,43 +24,22 @@ def load_forward_barrel(forward_barrel_file):
 def create_inverted_barrel(forward_data):
     """
     Converts the loaded forward barrel data (list of dictionaries) into an inverted barrel structure.
-    The result is a list of lists, each containing: [wordID, docIDs, frequencies, hitlists].
+    The result is a list of lists, each containing: [wordID, docID, frequency, hitlist].
     """
     inverted_data = []
 
-    # Create a dictionary to store wordID-wise data
-    word_dict = {}
+    # Iterate over the forward data and create a flat inverted barrel structure
     for row in forward_data:
         word_id = row['wordID']
         doc_id = row['docID']
         hitlist = row['hitlist']
         frequency = row['frequency']
 
-        if word_id not in word_dict:
-            word_dict[word_id] = {}
-
-        if doc_id not in word_dict[word_id]:
-            word_dict[word_id][doc_id] = {'frequency': frequency, 'hitlist': hitlist}
-
-    # Convert word_dict into the required inverted barrel format
-    for word_id, doc_dict in word_dict.items():
-        doc_ids = []
-        frequencies = []
-        hitlists = []
-
-        for doc_id, data in doc_dict.items():
-            doc_ids.append(doc_id)
-            frequencies.append(data['frequency'])
-            hitlists.append(data['hitlist'])
-
-        inverted_data.append([
-            word_id,
-            ";".join(map(str, doc_ids)),
-            ";".join(map(str, frequencies)),
-            ";".join(hitlists)
-        ])
+        # Store each entry with the format [wordID, docID, frequency, hitlist]
+        inverted_data.append([word_id, doc_id, frequency, hitlist])
 
     return inverted_data
+
 
 def save_inverted_barrel(inverted_data, inverted_barrel_file):
     """
@@ -102,8 +82,8 @@ def process_forward_barrels(forward_barrels_dir, inverted_barrels_dir):
 # Main program
 if __name__ == "__main__":
     # Directory paths
-    forward_barrels_dir = r'C:\Users\DELL\Desktop\Search-Engine-DSA'  # Directory containing forward barrels
-    inverted_barrels_dir = r'C:\Users\DELL\Desktop\Search-Engine-DSA'  # Directory to save inverted barrels
+    forward_barrels_dir = r'C:\Users\DELL\Desktop\Search-Engine-DSA\forward_barrels'  # Directory containing forward barrels
+    inverted_barrels_dir = r'C:\Users\DELL\Desktop\Search-Engine-DSA\inverted_barrels'  # Directory to save inverted barrels
 
     # Process all forward barrels
     process_forward_barrels(forward_barrels_dir, inverted_barrels_dir)

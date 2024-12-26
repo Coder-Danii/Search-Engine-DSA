@@ -189,13 +189,13 @@ def save_doc_mapper(read_docs, docMapper_file):
         print(f"Error writing to {docMapper_file}.")
 # Save barrels to CSV
 
-def save_forward_barrels(forward_barrels):
+def save_forward_barrels(forward_barrels, barrel_directory):
     """
     Saves the barrel data into separate CSV files for each barrel.
     Each row in the CSV includes: docID, wordID, frequency, hitlist.
     """
     for barrel_number, doc_map in forward_barrels.items():
-        barrel_file = f'forward_barrel_{barrel_number}.csv'
+        barrel_file = os.path.join(barrel_directory, f'forward_barrel_{barrel_number}.csv')  # Add the barrel directory to the path
         try:
             with open(barrel_file, 'w', newline='', encoding='utf-8') as csvfile:
                 writer = csv.DictWriter(csvfile, fieldnames=['docID', 'wordID', 'frequency', 'hitlist'])
@@ -204,7 +204,7 @@ def save_forward_barrels(forward_barrels):
                 for docID, word_hits in doc_map.items():
                     for wordID, hits in word_hits.items():
                         frequency = len(hits)  # Frequency is the number of hits in the list
-                        hitlist_str = "|".join([f"{hit[0]}, {hit[1]}" for hit in hits])
+                        hitlist_str = ";".join([f"{hit[0]}, {hit[1]}" for hit in hits])
                         # Convert hits to a string
                         writer.writerow({
                             'docID': docID,
@@ -341,7 +341,7 @@ def main():
     dataset_file = r'C:\Users\DELL\Desktop\articles\20articles.csv'
     lexicon_file = r'lexicon.json'
     docMapper_file = r'docmapper.json'
-    barrel_directory=r'C:\Users\DELL\Desktop\Search-Engine-DSA'
+    barrel_directory=r'C:\Users\DELL\Desktop\Search-Engine-DSA\forward_barrels'
     
     article_data = pd.read_csv(dataset_file, encoding='utf-8')  # Ensure UTF-8 encoding
     
@@ -357,7 +357,7 @@ def main():
     # Save the updated lexicon, forward index, and barrels
     save_lexicon(lexicon, lexicon_file)
     save_doc_mapper(read_docs, docMapper_file)
-    save_forward_barrels(barrels)
+    save_forward_barrels(barrels,barrel_directory)
 
     print("Processing complete! Lexicon, forward barrels updated.")
 
