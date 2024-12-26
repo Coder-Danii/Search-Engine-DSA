@@ -31,24 +31,16 @@ doc_id_counter = 0  # Global variable for docs read
 
 # Define weights for each field
 weights = {
-    'title': 1,
-    'text': 2,
-    'tags': 3,
-    'authors': 0
+    'text': 0,
+    'authors': 1,
+    'tags': 2,
+    'title': 3
 }
 
 ### Helper Functions ###
 # Function to split a token by special characters (hyphen, underscore, slash)
 def split_token(token):
     return re.split(r'[-_/]', token)
-
-def is_reference(word):
-    """Check if a word is a reference (URL-like) and return 1 for reference, 0 otherwise."""
-    match = re.search(r'^(.+\..+\.(com|net|org))$', word)
-    if match:
-        return 1  # It's a reference (e.g., URL with .com, .net, .org)
-    else:
-        return 0  # It's not a reference
 
 def lemmatize_with_pos(word):
     # Try lemmatizing as verb
@@ -72,11 +64,11 @@ def lemmatize_with_pos(word):
 
 # Function to clean and preprocess words (lemmatization)
 def preprocess_word(word):
-    # Check if the word ends with a domain suffix (e.g., .com, .org, .net)
-    if (is_reference(word)):
-        return word
 
-    word = re.sub(r'[^a-zA-Z0-9]', '', word)  # Remove non-alphabetic characters except digits
+    if word.isdigit():
+        return word  # Keep the word as it is if it's all digits
+
+    word = re.sub(r'[^a-zA-Z]', '', word)  # Remove non-alphabetic characters
     word = word.lower()  # Convert to lowercase
     
     # Remove words having only 1 character
@@ -92,9 +84,9 @@ def preprocess_word(word):
     return None
 
 
-def create_hit(word_id, field_index, is_reference, position):
+def create_hit(field_index, position):
     """Create a hit (word location and reference info)."""
-    return [field_index, is_reference, position]
+    return [field_index, position]
 
 def load_lexicon(lexicon_json_file):
     """Load the lexicon from a JSON file and return the last wordID."""
@@ -163,8 +155,8 @@ def load_forward_barrels(barrel_directory):
                         docID = int(row['docID'])
                         wordID = int(row['wordID'])
                         frequency = int(row['frequency'])
-                        hits = json.loads(row['hitlist'])  # Convert hitlist string to a list
-                        
+                        hits = [tuple(map(int, hit.split(", "))) for hit in row['hitlist'].split(";")]
+
                         # Validate frequency matches the hitlist length
                         if frequency != len(hits):
                             print(f"Warning: Frequency mismatch in {filename} for docID {docID}, wordID {wordID}.")
@@ -213,7 +205,8 @@ def save_forward_barrels(forward_barrels):
                 for docID, word_hits in doc_map.items():
                     for wordID, hits in word_hits.items():
                         frequency = len(hits)  # Frequency is the number of hits in the list
-                        hitlist_str = f"[{', '.join(map(str, hits))}]"  # Convert hits to a string
+                        hitlist_str = ";".join([f"{hit[0]}, {hit[1]}" for hit in hits])
+                        # Convert hits to a string
                         writer.writerow({
                             'docID': docID,
                             'wordID': wordID,
@@ -285,7 +278,7 @@ def process_article_data(data, lexicon, read_docs, forward_barrels):
                         lexicon = add_word_to_lexicon(word, lexicon)
                     wordID = lexicon.get(word)
                     # Create the hit and add to forward index
-                    hit = create_hit(wordID, weights['title'], 0, position)
+                    hit = create_hit(weights['title'], position)
                     forward_barrels = add_word_to_forwardBarrels(docID, wordID, hit, forward_barrels)
         
         # Block 2: Process Text
@@ -302,7 +295,7 @@ def process_article_data(data, lexicon, read_docs, forward_barrels):
                     wordID = lexicon.get(word)
                     # Create the hit and add to forward index
                     
-                    hit = create_hit(wordID, weights['text'], is_reference(word), position)
+                    hit = create_hit(weights['text'], position)
                     forward_barrels = add_word_to_forwardBarrels(docID, wordID, hit, forward_barrels)
 
         # Block 3: Process Tags
@@ -318,7 +311,7 @@ def process_article_data(data, lexicon, read_docs, forward_barrels):
                         lexicon = add_word_to_lexicon(word, lexicon)
                     wordID = lexicon.get(word)
                     # Create the hit and add to forward index
-                    hit = create_hit(wordID, weights['tags'], 0, position)
+                    hit = create_hit(weights['tags'], position)
                     forward_barrels = add_word_to_forwardBarrels(docID, wordID, hit, forward_barrels)
 
         # Block 4: Process Authors
@@ -334,7 +327,7 @@ def process_article_data(data, lexicon, read_docs, forward_barrels):
                         lexicon = add_word_to_lexicon(word, lexicon)
                     wordID = lexicon.get(word)
                     # Create the hit and add to forward index
-                    hit = create_hit(wordID, weights['authors'], 0, position)
+                    hit = create_hit(weights['authors'], position)
                     forward_barrels = add_word_to_forwardBarrels(docID, wordID, hit, forward_barrels)
         
         # Add the document to the docMapper
