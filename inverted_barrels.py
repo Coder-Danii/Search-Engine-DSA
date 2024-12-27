@@ -114,6 +114,8 @@ def process_forward_barrels(forward_barrels_dir, inverted_barrels_dir, offset_ba
 
     print(f"All inverted barrels have been processed and saved in '{inverted_barrels_dir}'.")
 
+
+## Use this method in query processing, this was added here to test the offsets 
 def get_row_by_word_id(word_id, inverted_barrel_file, offset_file):
     offsets = load_offsets(offset_file)  # Load all offsets
 
@@ -145,4 +147,3 @@ if __name__ == "__main__":
 
     # Process all forward barrels
     process_forward_barrels(forward_barrels_dir, inverted_barrels_dir,offset_barrels_dir)
-    get_row_by_word_id(0,r'C:\Users\DELL\Desktop\Search-Engine-DSA\inverted_barrels\inverted_barrel_0.csv',r'C:\Users\DELL\Desktop\Search-Engine-DSA\offset_barrels\inverted_barrel_0.bin')
