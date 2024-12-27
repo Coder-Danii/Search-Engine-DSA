@@ -1,5 +1,5 @@
-import csv
 from sortedcontainers import SortedList
+import csv
 import lexicon_plus_barrels as lb
 import threading as th
 import ranking as rk
@@ -100,8 +100,11 @@ def retrieve_word_docs(word, lexicon_path, words):
             for row in reader:
                 if int(row[0]) == (word_id % 1000):
                     doc_ids = row[1].split(';')
+                    frequencies = row[2].split(';')  # Add frequency part
                     hitlists = row[3].split(';')
-                    results.append((doc_ids, hitlists))
+                    
+                    # Store the data as tuples: (document IDs, frequencies, hit lists)
+                    results.append((doc_ids, frequencies, hitlists))
 
         # Store results in the words dictionary
         words[word] = results
