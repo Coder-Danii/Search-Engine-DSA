@@ -1,5 +1,5 @@
-from sortedcontainers import SortedList
 import csv
+from sortedcontainers import SortedList
 import lexicon_plus_barrels as lb
 import threading as th
 import ranking as rk
@@ -33,13 +33,13 @@ def get_results(query, lexicon_path):
 
     # Compute intersections for all retrieved document lists
     doc_lists = [docs for docs in words.values() if docs]  # Only include non-empty doc lists
-    intersections = rk.compute_intersections(doc_lists)
+    intersections = rk.intersect(doc_lists)
 
     # Rank documents for each word based on intersections
     ranked_docs = []
     for docs in words.values():
         if docs:
-            ranked_docs.extend(rk.rank_documents(docs, intersections))
+            ranked_docs.extend(rk.rank_docs(docs, intersections))
 
     # Remove duplicates from ranked documents (based on doc_id)
     result_docs_set = set()
@@ -99,20 +99,27 @@ def retrieve_word_docs(word, lexicon_path, words):
 
             for row in reader:
                 if int(row[0]) == (word_id % 1000):
-                    doc_ids = row[1].split(';')
-                    frequencies = row[2].split(';')  # Add frequency part
-                    hitlists = row[3].split(';')
-                    
-                    # Store the data as tuples: (document IDs, frequencies, hit lists)
-                    results.append((doc_ids, frequencies, hitlists))
+                    # Extract document IDs and hitlist strings
+                    doc_ids = row[1].split('|')  # Split doc IDs by '|'
+                    hitlists = row[3].split('|')  # Split hitlists by '|'
 
-        # Store results in the words dictionary
+                    # Each doc_id corresponds to a hitlist, parse them as needed
+                    parsed_results = []
+                    for doc_id, hitlist in zip(doc_ids, hitlists):
+                        hits = hitlist.split(';')  # Split each hitlist by ';'
+                        parsed_hits = [tuple(map(int, hit.split(','))) for hit in hits]  # Convert each hit to a tuple of (hit_type, position)
+                        parsed_results.append((doc_id, parsed_hits))  # Append the document ID and its corresponding hit list
+
+                    results.extend(parsed_results)
+
+        # Store results in the words dictionary, keyed by the word
         words[word] = results
 
     except FileNotFoundError:
-        print(f"Error: Inverted barrel file not found.")
+        print(f"Error: Inverted barrel file '{file_name}' not found.")
     except Exception as e:
         print(f"Error: {str(e)}")
+
 
 
 # Function to retrieve detailed document info (for example, metadata, content)
@@ -123,7 +130,7 @@ def retrieve_doc_info(doc_id, results):
 
 
 if __name__ == "__main__":
-    query_word = "health mental"
+    query_word = "ryan mental"
     lexicon_path = "lexicon.json"  # Update this path to the actual lexicon JSON file
 
     results, total_docs = get_results(query_word, lexicon_path)

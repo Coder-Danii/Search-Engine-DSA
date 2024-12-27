@@ -1,88 +1,109 @@
 from sortedcontainers import SortedList
 
-# Rank documents based on weighted hits and frequency
-def rank_documents(docs, intersections):
-    max_text_hits = 20  # Limit text hits to avoid overemphasis
-    top_docs = SortedList()  # Stores documents ranked by relevance (-score for descending order)
+def rank_docs(docs, intersections):
+    added = [False for _ in range(6)]  # Prevents bonuses from stacking
+    top_docs = SortedList()  # Stores documents in sorted order
 
     for doc in docs:
-        doc_ids, frequencies, hit_lists = doc  # Unpack the doc data
-        score = 0
+        doc_id = doc[0]
+        hit_list = doc[1]
 
-        # Track fields to avoid stacking bonuses
-        processed_fields = set()
+        # Base score based on TEXT hits, capped at 20
+        this_score = min(len(hit_list), 20)
 
-        # Process each hit list
-        for hit_str in hit_lists:
-            # Parse the hit string (assuming the format is: weight, position)
-            hits = parse_hit_format(hit_str)
+        # Intersection multiplier
+        multiplier = intersection_multiplier(doc, intersections)
+        this_score += 10 if multiplier != 1 else 0
 
-            # Iterate over the parsed hits
-            for weight, position in hits:
-                if weight not in processed_fields:
-                    score += weight  # Add the field's weight to the score
-                    processed_fields.add(weight)
+        # Iterating over hitlist to check and assign scores
+        i = 0
+        step = 1  # Initially forward
+        while i >= 0 and i < len(hit_list):
+            hit = hit_list[i]
 
-        # Apply frequency bonus
-        for frequency in frequencies:
-            score += int(frequency)  # Add frequency to score
+            # Match the hit type using modulo operation
+            match hit[0]:
+                case 3:  # TITLE
+                    if not added[3]:
+                        this_score += 50
+                        added[3] = True
+                case 0:  # TEXT (skipped after handling non-TEXT)
+                    if step == 1:  # Forward iteration
+                        i = len(hit_list) - 1
+                        step = -1  # Switch to backward iteration
+                    else:
+                        break  # Stop after TEXT hits are encountered
+                case 2:  # TAGS
+                    if not added[2]:
+                        this_score += 30
+                        added[2] = True
+                case 1:  # AUTHORS
+                    if not added[1]:
+                        this_score += 20
+                        added[1] = True
 
-        # Apply text hit bonus (capped at the threshold)
-        text_hits = sum(1 for hit in hit_lists if hit[0] == 0)  # Weight 0 is for text hits
-        score += min(text_hits, max_text_hits)
+            # Move to the next hit
+            if hit[0] != 1:  # Avoid moving when encountering TEXT (handled above)
+                i += step
+            else:
+                break  # Break after handling TEXT hits
 
-        # Adjust score based on intersections
-        multiplier = calculate_intersection_multiplier(doc_ids[0], intersections)
-        score *= multiplier
+        # Apply the intersection multiplier to the score
+        this_score *= multiplier
 
-        # Add to sorted list (negative score for descending order)
-        top_docs.add((-score, doc_ids))
+        # Add score and document ID to the SortedList (negative score for descending order)
+        top_docs.add((-this_score, doc_id))
 
     return top_docs
 
 
-# Calculate multiplier for documents based on intersections
-def calculate_intersection_multiplier(doc_id, intersections):
-    for i in range(len(intersections) - 1, -1, -1):  # Start from deepest intersection
-        if doc_id in intersections[i]:
-            if intersections[i][doc_id]:  # Relevant intersection
-                return (i + 1) * 100
+
+# Computes intersections of document lists for multi-word queries
+def intersect(doc_lists):
+    if len(doc_lists) <= 1:
+        return []
+
+    # Convert each doc_list into dictionaries for fast lookup
+    doc_lists = [{doc[0]: is_relevant(doc[1]) for doc in doc_list} for doc_list in doc_lists]
+    intersections = [doc_lists[0]]
+
+    for i in range(1, len(doc_lists)):
+        this_intersection = {}
+        for doc_id in doc_lists[i]:
+            if doc_id in intersections[i - 1]:
+                if doc_lists[i][doc_id] and intersections[i - 1][doc_id]:
+                    this_intersection[doc_id] = True
+                else:
+                    this_intersection[doc_id] = False
+        intersections.append(this_intersection)
+    return intersections
+
+
+# Checks if a hit list is relevant (has hits other than TEXT)
+def is_relevant(hit_list):
+    # Check if any hit type (hit[0]) is not TEXT (which is represented by hit_type 1)
+    return any(hit[0] != 1 for hit in hit_list)
+
+
+# Multiplier based on intersection level
+def intersection_multiplier(doc, intersections):
+    for i in range(len(intersections) - 1, 0, -1):
+        if doc[0] in intersections[i]:
+            if intersections[i][doc[0]]:
+                return (i + 1) * 100  # Intersection in title/URL/authors/tags
             return (i + 1) * 2
     return 1
 
 
-# Compute intersections for multi-word queries
-def compute_intersections(doc_lists):
-    doc_dict = {}
-
-    for doc_list in doc_lists:
-        print("Processing doc_list:", doc_list)  # Debug print to see the data structure
-        # Iterate over the elements in doc_list
-        for i in range(len(doc_list[0])):  # Assuming each list in doc_list has the same length
-            # Extract doc_id, frequency, and hitlist based on index
-            doc_id = doc_list[0][i]  # doc_ids list
-            hitlist = doc_list[2][i]  # hitlist list
-
-            # Now we need to process the hitlist, assuming the hitlist is a string of comma-separated values
-            hits = parse_hit_format(hitlist)
-
-            # Add the processed doc_id and hits to doc_dict
-            doc_dict[doc_id] = is_hit_list_relevant(hits)  # You can process hits as needed
-
-    return doc_dict
+# Parses the hitlist from the CSV format
+def parse_hitlist(hitlist_str):
+    return [(int(hit.split(',')[0]), int(hit.split(',')[1])) for hit in hitlist_str.split('|')]
 
 
-
-# Determine if a hit list is relevant (contains non-text hits)
-def is_hit_list_relevant(hit_list):
-    return any(hit[0] != 0 for hit in hit_list)  # Non-text hits have weight != 0
-
-
-# Parse hit string into weight, position pairs
-def parse_hit_format(hit_str):
-    # Format: "weight, position"
-    hits = []
-    for hit in hit_str.split(";"):
-        weight, position = hit.split(",")
-        hits.append((int(weight), int(position)))  # Return as a tuple (weight, position)
-    return hits
+# Example utility function to process document lists
+def process_docs(doc_data):
+    doc_list = []
+    for doc_id, freq, hitlist_str in zip(doc_data['doc_ids'], doc_data['frequencies'], doc_data['hitlists']):
+        hitlist = parse_hitlist(hitlist_str)
+        doc_list.append((int(doc_id), hitlist))
+    return doc_list
