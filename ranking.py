@@ -90,7 +90,7 @@ def intersection_multiplier(doc, intersections):
     for i in range(len(intersections) - 1, 0, -1):
         if doc[0] in intersections[i]:
             if intersections[i][doc[0]]:
-                return (i + 1) * 100  # Intersection in title/URL/authors/tags
+                return (i + 1) * 10  # Intersection in title/authors/tags
             return (i + 1) * 2
     return 1
 

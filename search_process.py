@@ -4,6 +4,8 @@ import lexicon_plus_barrels as lb
 import threading as th
 import ranking as rk
 import json
+import inverted_barrels as ib
+
 
 def get_results(query, lexicon_path):
     query_tokens = []
@@ -85,38 +87,41 @@ def retrieve_word_docs(word, lexicon_path, words):
             print(f"Error: Word '{word}' not found in lexicon.")
             return
 
-        # Determine the inverted barrel file name
-        barrel_number = (word_id // 1000)  # Determine the barrel number
-        file_name = f"inverted_barrels/inverted_barrel_{barrel_number}.csv"
+        # Load offsets from the binary offset file
+        barrel_number = word_id // 1000
+        offset_file = f"offset_barrels/inverted_barrel_{barrel_number}.bin"  # Offset file is specific to each barrel
+        offsets = ib.load_offsets(offset_file)  # Load all offsets from the binary file
 
-        # List to store results
-        results = []
+        # Determine the barrel number from the word ID and locate the corresponding CSV file
+        file_name = f"inverted_barrels/inverted_barrel_{barrel_number}.csv"  # CSV file containing the barrel data
 
-        # Open and search the corresponding inverted barrel file
+        # Find the offset for the word ID
+        offset = offsets[word_id % 1000]  # Get the offset for the specific word
+
+        # Open the barrel file and seek to the offset
         with open(file_name, mode='r', newline='', encoding='utf-8') as file:
+            file.seek(offset)  # Seek to the position in the file where the data for this word starts
+
+            # Read the corresponding line for the word
             reader = csv.reader(file)
-            header = next(reader)  # Skip the header
+            row = next(reader)  # This should be the line for the word
 
-            for row in reader:
-                if int(row[0]) == (word_id % 1000):
-                    # Extract document IDs and hitlist strings
-                    doc_ids = row[1].split('|')  # Split doc IDs by '|'
-                    hitlists = row[3].split('|')  # Split hitlists by '|'
+            # Extract document IDs and hitlist strings
+            doc_ids = row[1].split('|')  # Split doc IDs by '|'
+            hitlists = row[3].split('|')  # Split hitlists by '|'
 
-                    # Each doc_id corresponds to a hitlist, parse them as needed
-                    parsed_results = []
-                    for doc_id, hitlist in zip(doc_ids, hitlists):
-                        hits = hitlist.split(';')  # Split each hitlist by ';'
-                        parsed_hits = [tuple(map(int, hit.split(','))) for hit in hits]  # Convert each hit to a tuple of (hit_type, position)
-                        parsed_results.append((doc_id, parsed_hits))  # Append the document ID and its corresponding hit list
+            # Each doc_id corresponds to a hitlist, parse them as needed
+            parsed_results = []
+            for doc_id, hitlist in zip(doc_ids, hitlists):
+                hits = hitlist.split(';')  # Split each hitlist by ';'
+                parsed_hits = [tuple(map(int, hit.split(','))) for hit in hits]  # Convert each hit to a tuple of (hit_type, position)
+                parsed_results.append((doc_id, parsed_hits))  # Append the document ID and its corresponding hit list
 
-                    results.extend(parsed_results)
-
-        # Store results in the words dictionary, keyed by the word
-        words[word] = results
+            # Store results in the words dictionary, keyed by the word
+            words[word] = parsed_results
 
     except FileNotFoundError:
-        print(f"Error: Inverted barrel file '{file_name}' not found.")
+        print(f"Error: Inverted barrel file '{file_name}' or offset file '{offset_file}' not found.")
     except Exception as e:
         print(f"Error: {str(e)}")
 
