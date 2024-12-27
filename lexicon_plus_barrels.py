@@ -123,52 +123,6 @@ def load_read_docs(doc_mapper_json):
             # If no documents have been read yet, start from 1
     
     return read_docs
-def load_forward_barrels(barrel_directory):
-    """
-    Loads forward barrels from a directory containing CSV files into a structured data format.
-
-    Args:
-        barrel_directory (str): Path to the directory containing forward barrel CSV files.
-
-    Returns:
-        defaultdict: A nested defaultdict structure with the format:
-                     forward_barrels[barrel_number][docID][wordID] = [hit1, hit2, ...].
-    """
-    # Initialize the nested defaultdict structure for forward barrels
-    forward_barrels = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-
-    # Iterate through files in the directory
-    for filename in os.listdir(barrel_directory):
-        if filename.startswith('forward_barrel_') and filename.endswith('.csv'):
-            try:
-                # Extract barrel number from the filename
-                barrel_number = int(filename.split('_')[-1].split('.')[0])  
-                file_path = os.path.join(barrel_directory, filename)
-                
-                # Read the barrel CSV file
-                with open(file_path, 'r', encoding='utf-8') as csvfile:
-                    reader = csv.DictReader(csvfile)
-                    
-                    for row in reader:
-                        # Extract values from the row
-                        docID = int(row['docID'])
-                        wordID = int(row['wordID'])
-                        frequency = int(row['frequency'])
-                        hits = [tuple(map(int, hit.split(", "))) for hit in row['hitlist'].split(";")]
-
-                        # Validate frequency matches the hitlist length
-                        if frequency != len(hits):
-                            print(f"Warning: Frequency mismatch in {filename} for docID {docID}, wordID {wordID}.")
-                        
-                        # Add hits to the barrels structure
-                        forward_barrels[barrel_number][docID][wordID].extend(hits)
-
-                print(f"Loaded barrel {barrel_number} from {filename}.")
-            except (IOError, json.JSONDecodeError, ValueError, IndexError) as e:
-                print(f"Error loading {filename}: {e}. Skipping this file.")
-
-    return forward_barrels
-
 
 def save_lexicon(lexicon, lexicon_file):
     """Save the lexicon to a JSON file."""
@@ -235,7 +189,6 @@ def add_word_to_lexicon(word, lexicon):
         word_id_counter += 1
     return lexicon
 
-
 def add_word_to_forwardBarrels(docID, wordID, word_hit, forward_barrels):
     # Determine which barrel the word belongs to based on wordID
     barrel_number = wordID // 1000  # Barrel range based on wordID
@@ -254,7 +207,8 @@ def add_doc_to_docMapper(url, read_docs):
     doc_id_counter += 1  # Increment doc_id_counter to generate a new docID
     
     return read_docs
-def process_article_data(data, lexicon, read_docs, forward_barrels):
+
+def process_article_data(data, lexicon, read_docs, forward_barrels, barrel_directory):
     """
     Process articles and update lexicon, forward index, and barrels.
     Skip articles with URLs already present in read_docs.
@@ -262,7 +216,7 @@ def process_article_data(data, lexicon, read_docs, forward_barrels):
     global doc_id_counter  # Ensure doc_id_counter updates only for new documents
     counter = 0  # Initialize the counter outside the loop
     
-    barrel_directory = r'C:\Users\DELL\Desktop\Search-Engine-DSA\forward_barrels'
+    
     os.makedirs(barrel_directory, exist_ok=True)  # Ensure the directory exists
 
     for index, row in data.iterrows():
@@ -276,11 +230,9 @@ def process_article_data(data, lexicon, read_docs, forward_barrels):
         docID = doc_id_counter  # Use the most recently assigned docID
 
         # Process the title, text, tags, and authors fields
-        for field, weight in [('title', weights['title']), 
-                              ('text', weights['text']), 
-                              ('tags', weights['tags']), 
-                              ('authors', weights['authors'])]:
+        for field in ['title', 'text', 'tags', 'authors']:
             field_data = str(row[field])
+            weight = weights[field]  # Lookup weight here
             tokens = word_tokenize(field_data)
             for position, token in enumerate(tokens):
                 split_tokens = split_token(token)
@@ -292,6 +244,7 @@ def process_article_data(data, lexicon, read_docs, forward_barrels):
                         wordID = lexicon[word]
                         hit = create_hit(weight, position)
                         forward_barrels = add_word_to_forwardBarrels(docID, wordID, hit, forward_barrels)
+
 
         # Add the document to the docMapper
         read_docs = add_doc_to_docMapper(url, read_docs)
@@ -316,10 +269,10 @@ def process_article_data(data, lexicon, read_docs, forward_barrels):
 
 
 def main():
-    dataset_file = r'C:\Users\DELL\Desktop\University\Data Structures and Algorithms\Project\Medium Articles\medium_articles.csv'
+    dataset_file = r'C:\Users\DELL\Desktop\articles\20articles.csv'
     lexicon_file = r'lexicon.json'
     docMapper_file = r'docmapper.json'
-    barrel_directory=r'C:\Users\DELL\Desktop\Search-Engine-DSA\forward_barrels'
+    barrel_directory = r'C:\Users\DELL\Desktop\Search-Engine-DSA\forward_barrels'
     
     article_data = pd.read_csv(dataset_file, encoding='utf-8')  # Ensure UTF-8 encoding
     
@@ -327,10 +280,10 @@ def main():
     lexicon = load_lexicon(lexicon_file)
     read_docs = load_read_docs(docMapper_file)
     forward_barrels = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # Barrels dictionary to store wordID and hits by docID
-    #forward_barrels= load_forward_barrels(barrel_directory)
+    
 
     # Process the articles and update lexicon, forward index, and barrels
-    lexicon, barrels, read_docs = process_article_data(article_data, lexicon, read_docs, forward_barrels)
+    lexicon, barrels, read_docs = process_article_data(article_data, lexicon, read_docs, forward_barrels, barrel_directory)
     
     # Save the updated lexicon, forward index, and barrels
     save_lexicon(lexicon, lexicon_file)
