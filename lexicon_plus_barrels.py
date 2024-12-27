@@ -67,7 +67,7 @@ def preprocess_word(word):
     if word.isdigit():
         return word  # Keep the word as it is if it's all digits
 
-    word = re.sub(r'[^a-zA-Z]', '', word)  # Remove non-alphabetic characters
+    word = re.sub(r'[^a-zA-Z0-9]', '', word)  # Remove non-alphanumeric characters
     word = word.lower()  # Convert to lowercase
     
     # Remove words having only 1 character
@@ -187,25 +187,33 @@ def save_doc_mapper(read_docs, docMapper_file):
             print(f"Document mapper saved to {docMapper_file}.")
     except IOError:
         print(f"Error writing to {docMapper_file}.")
-# Save barrels to CSV
 
+# Save barrels to CSV
 def save_forward_barrels(forward_barrels, barrel_directory):
     """
     Saves the barrel data into separate CSV files for each barrel.
     Each row in the CSV includes: docID, wordID, frequency, hitlist.
+    Writes the header only if the file is empty.
     """
-    for barrel_number, doc_map in forward_barrels.items():
-        barrel_file = os.path.join(barrel_directory, f'forward_barrel_{barrel_number}.csv')  # Add the barrel directory to the path
-        try:
-            with open(barrel_file, 'w', newline='', encoding='utf-8') as csvfile:
-                writer = csv.DictWriter(csvfile, fieldnames=['docID', 'wordID', 'frequency', 'hitlist'])
-                writer.writeheader()  # Write the header
+    os.makedirs(barrel_directory, exist_ok=True)  # Ensure the directory exists
 
+    for barrel_number, doc_map in forward_barrels.items():
+        barrel_file = os.path.join(barrel_directory, f'forward_barrel_{barrel_number}.csv')
+        
+        # Check if the file is empty or does not exist
+        is_new_file = not os.path.exists(barrel_file) or os.path.getsize(barrel_file) == 0
+
+        try:
+            with open(barrel_file, 'a', newline='', encoding='utf-8') as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=['docID', 'wordID', 'frequency', 'hitlist'])
+                
+                if is_new_file:
+                    writer.writeheader()  # Write the header only for a new or empty file
+                
                 for docID, word_hits in doc_map.items():
                     for wordID, hits in word_hits.items():
                         frequency = len(hits)  # Frequency is the number of hits in the list
-                        hitlist_str = ";".join([f"{hit[0]}, {hit[1]}" for hit in hits])
-                        # Convert hits to a string
+                        hitlist_str = ";".join([f"{hit[0]}, {hit[1]}" for hit in hits])  # Convert hits to a string
                         writer.writerow({
                             'docID': docID,
                             'wordID': wordID,
@@ -214,8 +222,8 @@ def save_forward_barrels(forward_barrels, barrel_directory):
                         })
 
             print(f"Barrel {barrel_number} saved to {barrel_file}.")
-        except IOError:
-            print(f"Error writing to {barrel_file}.")
+        except IOError as e:
+            print(f"Error writing to {barrel_file}: {e}")
 
 
 ### Lexicon and Indexing Logic ###
@@ -246,99 +254,69 @@ def add_doc_to_docMapper(url, read_docs):
     doc_id_counter += 1  # Increment doc_id_counter to generate a new docID
     
     return read_docs
-
 def process_article_data(data, lexicon, read_docs, forward_barrels):
     """
     Process articles and update lexicon, forward index, and barrels.
     Skip articles with URLs already present in read_docs.
     """
     global doc_id_counter  # Ensure doc_id_counter updates only for new documents
+    counter = 0  # Initialize the counter outside the loop
     
-    for index, row in data.iterrows():    
+    barrel_directory = r'C:\Users\DELL\Desktop\Search-Engine-DSA\forward_barrels'
+    os.makedirs(barrel_directory, exist_ok=True)  # Ensure the directory exists
+
+    for index, row in data.iterrows():
         url = row['url']  # Extract URL of the article
-        
+
         # Skip processing if URL is already in the read_docs
         if url in read_docs.values():
             print(f"Skipping already processed URL: {url}")
             continue
-        
+
         docID = doc_id_counter  # Use the most recently assigned docID
 
-        # Block 1: Process Title
-        title_field = str(row['title'])  # Read the entire 'title' field
-        title_tokens = word_tokenize(title_field)  # Tokenize
-        for position, token in enumerate(title_tokens):
-            # Apply split_token and preprocess each token
-            split_tokens = split_token(token)
-            for split_word in split_tokens:
-                word = preprocess_word(split_word)
-                if word:
-                    if word not in lexicon:  # Check if the word is not already in the lexicon
-                        lexicon = add_word_to_lexicon(word, lexicon)
-                    wordID = lexicon.get(word)
-                    # Create the hit and add to forward index
-                    hit = create_hit(weights['title'], position)
-                    forward_barrels = add_word_to_forwardBarrels(docID, wordID, hit, forward_barrels)
-        
-        # Block 2: Process Text
-        text_field = str(row['text'])  # Read the entire 'text' field
-        text_tokens = word_tokenize(text_field)  # Tokenize
-        for position, token in enumerate(text_tokens):
-            # Apply split_token and preprocess each token
-            split_tokens = split_token(token)
-            for split_word in split_tokens:
-                word = preprocess_word(split_word)
-                if word:
-                    if word not in lexicon:  # Check if the word is not already in the lexicon
-                        lexicon = add_word_to_lexicon(word, lexicon)
-                    wordID = lexicon.get(word)
-                    # Create the hit and add to forward index
-                    
-                    hit = create_hit(weights['text'], position)
-                    forward_barrels = add_word_to_forwardBarrels(docID, wordID, hit, forward_barrels)
+        # Process the title, text, tags, and authors fields
+        for field, weight in [('title', weights['title']), 
+                              ('text', weights['text']), 
+                              ('tags', weights['tags']), 
+                              ('authors', weights['authors'])]:
+            field_data = str(row[field])
+            tokens = word_tokenize(field_data)
+            for position, token in enumerate(tokens):
+                split_tokens = split_token(token)
+                for split_word in split_tokens:
+                    word = preprocess_word(split_word)
+                    if word:
+                        if word not in lexicon:
+                            lexicon = add_word_to_lexicon(word, lexicon)
+                        wordID = lexicon[word]
+                        hit = create_hit(weight, position)
+                        forward_barrels = add_word_to_forwardBarrels(docID, wordID, hit, forward_barrels)
 
-        # Block 3: Process Tags
-        tags_field = str(row['tags'])  # Read the entire 'tags' field
-        tags_tokens = word_tokenize(tags_field)  # Tokenize
-        for position, token in enumerate(tags_tokens):
-            # Apply split_token and preprocess each token
-            split_tokens = split_token(token)
-            for split_word in split_tokens:
-                word = preprocess_word(split_word)
-                if word:
-                    if word not in lexicon:  # Check if the word is not already in the lexicon
-                        lexicon = add_word_to_lexicon(word, lexicon)
-                    wordID = lexicon.get(word)
-                    # Create the hit and add to forward index
-                    hit = create_hit(weights['tags'], position)
-                    forward_barrels = add_word_to_forwardBarrels(docID, wordID, hit, forward_barrels)
-
-        # Block 4: Process Authors
-        authors_field = str(row['authors'])  # Read the entire 'authors' field
-        authors_tokens = word_tokenize(authors_field)  # Tokenize
-        for position, token in enumerate(authors_tokens):
-            # Apply split_token and preprocess each token
-            split_tokens = split_token(token)
-            for split_word in split_tokens:
-                word = preprocess_word(split_word)
-                if word:
-                    if word not in lexicon:  # Check if the word is not already in the lexicon
-                        lexicon = add_word_to_lexicon(word, lexicon)
-                    wordID = lexicon.get(word)
-                    # Create the hit and add to forward index
-                    hit = create_hit(weights['authors'], position)
-                    forward_barrels = add_word_to_forwardBarrels(docID, wordID, hit, forward_barrels)
-        
         # Add the document to the docMapper
         read_docs = add_doc_to_docMapper(url, read_docs)
+
+        # Increment the counter
+        counter += 1
+
+        # Save and clear forward barrels every 1000 articles
+        if counter % 1000 == 0:
+            save_forward_barrels(forward_barrels, barrel_directory)
+            forward_barrels.clear()
+
+    # Save remaining barrels after processing all articles
+    if forward_barrels:
+        save_forward_barrels(forward_barrels, barrel_directory)
+        forward_barrels.clear()
 
     print(f"Processed {len(data)} articles.")
     return lexicon, forward_barrels, read_docs
 
 
 
+
 def main():
-    dataset_file = r'C:\Users\DELL\Desktop\articles\20articles.csv'
+    dataset_file = r'C:\Users\DELL\Desktop\University\Data Structures and Algorithms\Project\Medium Articles\medium_articles.csv'
     lexicon_file = r'lexicon.json'
     docMapper_file = r'docmapper.json'
     barrel_directory=r'C:\Users\DELL\Desktop\Search-Engine-DSA\forward_barrels'
@@ -349,7 +327,7 @@ def main():
     lexicon = load_lexicon(lexicon_file)
     read_docs = load_read_docs(docMapper_file)
     forward_barrels = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # Barrels dictionary to store wordID and hits by docID
-    forward_barrels= load_forward_barrels(barrel_directory)
+    #forward_barrels= load_forward_barrels(barrel_directory)
 
     # Process the articles and update lexicon, forward index, and barrels
     lexicon, barrels, read_docs = process_article_data(article_data, lexicon, read_docs, forward_barrels)
@@ -357,7 +335,6 @@ def main():
     # Save the updated lexicon, forward index, and barrels
     save_lexicon(lexicon, lexicon_file)
     save_doc_mapper(read_docs, docMapper_file)
-    save_forward_barrels(barrels,barrel_directory)
 
     print("Processing complete! Lexicon, forward barrels updated.")
 
