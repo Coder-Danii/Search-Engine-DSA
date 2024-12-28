@@ -51,8 +51,8 @@ def rank_docs(docs, intersections):
         # Apply the intersection multiplier to the score
         this_score *= multiplier
 
-        # Add score and document ID to the SortedList (negative score for descending order)
-        top_docs.add((-this_score, doc_id))
+        # Add score and document ID to the SortedList (positive score for descending order)
+        top_docs.add((this_score, doc_id))
 
     return top_docs
 

@@ -7,9 +7,11 @@ import ranking as rk
 import json
 import inverted_barrels as ib
 from flask_cors import CORS
-# # Initialize Flask app
+
+# Initialize Flask app
 app = Flask(__name__)
 CORS(app)
+
 # Load docmapper.json once during initialization for O(1) lookups
 with open(r"C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\Search-Engine-DSA NEW\\Search-Engine-DSA\\docmapper.json", 'r', encoding='utf-8') as docmapper_file:
     doc_mapper = json.load(docmapper_file)
@@ -25,16 +27,21 @@ documents_df.set_index('url', inplace=True)
 def search():
     data = request.json
     query = data.get('query')
-    lexicon_path =r"C:\\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\Search-Engine-DSA\lexicon.json"
+    lexicon_path = r"C:\\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\Search-Engine-DSA\lexicon.json"
 
     if not query:
-        return jsonify({"error": "Both 'query' are required."}), 400
+        return jsonify({"error": "Query is required."}), 400
 
     try:
-        results, total_docs = get_results(query, lexicon_path)
-        return jsonify({"total_results": total_docs, "results": results}), 200
+        results, total_docs, tags = get_results(query, lexicon_path)
+        return jsonify({
+            "total_results": total_docs,
+            "results": results,
+            "tags": tags  # Include tags in the response
+        }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 import sys
 
 # Increase the CSV field size limit
@@ -64,11 +71,7 @@ def get_results(query, lexicon):
 
     doc_lists = [docs for docs in words.values() if docs]
     intersections = rk.intersect(doc_lists)
-
-    ranked_docs = []
-    for docs in words.values():
-        if docs:
-            ranked_docs.extend(rk.rank_docs(docs, intersections))
+    ranked_docs = rk.rank_docs([doc for docs in words.values() for doc in docs], intersections)
 
     result_docs_set = set()
     unique_result_docs = []
@@ -80,6 +83,7 @@ def get_results(query, lexicon):
     sorted_docs = sorted(unique_result_docs, key=lambda x: -x[0])
 
     results = []
+    all_tags = set()
     threads = []
 
     for score, doc_id in sorted_docs:
@@ -90,14 +94,17 @@ def get_results(query, lexicon):
     for thread in threads:
         thread.join()
 
-    return results, len(sorted_docs)
+    # Collect unique tags
+    for result in results:
+        tags = result.get("tags", "").split(",")  # Split tags if stored as comma-separated
+        all_tags.update(tag.strip() for tag in tags if tag.strip())
 
+    return results, len(sorted_docs), list(all_tags)  # Include tags in the return
 
-# Function to retrieve word documents from lexicon and inverted barrel files
 def retrieve_word_docs(word, lexicon_path, words):
     try:
         # Load the lexicon from the JSON file
-        with open(lexicon_path, 'r',encoding='utf-8') as file:
+        with open(lexicon_path, 'r', encoding='utf-8') as file:
             lexicon = json.load(file)
 
         # Retrieve the word ID from the lexicon
