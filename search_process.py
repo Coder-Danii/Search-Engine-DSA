@@ -1,11 +1,10 @@
 import csv
-from sortedcontainers import SortedList
+#from sortedcontainers import SortedList
 import lexicon_plus_barrels as lb
 import threading as th
 import ranking as rk
 import json
 import inverted_barrels as ib
-
 
 def get_results(query, lexicon_path):
     query_tokens = []
@@ -78,7 +77,7 @@ def get_results(query, lexicon_path):
 def retrieve_word_docs(word, lexicon_path, words):
     try:
         # Load the lexicon from the JSON file
-        with open(lexicon_path, 'r') as file:
+        with open(lexicon_path, 'r',encoding='utf-8') as file:
             lexicon = json.load(file)
 
         # Retrieve the word ID from the lexicon
@@ -89,12 +88,13 @@ def retrieve_word_docs(word, lexicon_path, words):
 
         # Load offsets from the binary offset file
         barrel_number = word_id // 1000
-        offset_file = f"offset_barrels/inverted_barrel_{barrel_number}.bin"  # Offset file is specific to each barrel
+        offset_file = r'C:\\Users\\DELL\\Desktop\\Search-Engine-DSA\\offset_barrels\\inverted_barrel_{}.bin'.format(barrel_number)
+        print(f"Attempting to open file: {offset_file}")
+
         offsets = ib.load_offsets(offset_file)  # Load all offsets from the binary file
 
         # Determine the barrel number from the word ID and locate the corresponding CSV file
-        file_name = f"inverted_barrels/inverted_barrel_{barrel_number}.csv"  # CSV file containing the barrel data
-
+        file_name = r'C:\Users\DELL\Desktop\Search-Engine-DSA\inverted_barrels\inverted_barrel_{}.csv'.format(barrel_number)
         # Find the offset for the word ID
         offset = offsets[word_id % 1000]  # Get the offset for the specific word
 
@@ -135,7 +135,7 @@ def retrieve_doc_info(doc_id, results):
 
 
 if __name__ == "__main__":
-    query_word = "ryan mental"
+    query_word = "mental"
     lexicon_path = "lexicon.json"  # Update this path to the actual lexicon JSON file
 
     results, total_docs = get_results(query_word, lexicon_path)
