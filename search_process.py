@@ -35,8 +35,12 @@ def search():
         return jsonify({"total_results": total_docs, "results": results}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+import sys
 
-def get_results(query, lexicon_path):
+# Increase the CSV field size limit
+csv.field_size_limit(10**7)
+
+def get_results(query, lexicon):
     query_tokens = []
     for word in query.split():
         tokenized_words = lb.split_token(word)
@@ -51,7 +55,7 @@ def get_results(query, lexicon_path):
     threads = []
 
     for word in query_tokens:
-        this_thread = th.Thread(target=retrieve_word_docs, args=(word, lexicon_path, words))
+        this_thread = th.Thread(target=retrieve_word_docs, args=(word, lexicon, words))
         threads.append(this_thread)
         this_thread.start()
 
@@ -88,11 +92,15 @@ def get_results(query, lexicon_path):
 
     return results, len(sorted_docs)
 
+
+# Function to retrieve word documents from lexicon and inverted barrel files
 def retrieve_word_docs(word, lexicon_path, words):
     try:
-        with open(lexicon_path, 'r', encoding='utf-8') as file:
+        # Load the lexicon from the JSON file
+        with open(lexicon_path, 'r',encoding='utf-8') as file:
             lexicon = json.load(file)
 
+        # Retrieve the word ID from the lexicon
         word_id = lexicon.get(word)
         if word_id is None:
             return

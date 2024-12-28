@@ -2,34 +2,67 @@ from collections import defaultdict
 import csv
 import os
 
+from concurrent.futures import ThreadPoolExecutor
+
 from collections import defaultdict
 import csv
 import struct
 
+def process_chunk(chunk):
+    local_inverted_barrel = defaultdict(lambda: ["", "", ""])
+    for row in chunk:
+        word_id = int(row['wordID'])
+        doc_id = row['docID']
+        frequency = row['frequency']
+        hitlist = row['hitlist']
+        
+        if local_inverted_barrel[word_id][0]:
+            local_inverted_barrel[word_id][0] += f"|{doc_id}"
+            local_inverted_barrel[word_id][1] += f"|{frequency}"
+            local_inverted_barrel[word_id][2] += f"|{hitlist}"
+        else:
+            local_inverted_barrel[word_id][0] += doc_id
+            local_inverted_barrel[word_id][1] += frequency
+            local_inverted_barrel[word_id][2] += hitlist
+    return local_inverted_barrel
+
+def merge_inverted_barrels(main_barrel, local_barrel):
+    for word_id, values in local_barrel.items():
+        if main_barrel[word_id][0]:
+            main_barrel[word_id][0] += f"|{values[0]}"
+            main_barrel[word_id][1] += f"|{values[1]}"
+            main_barrel[word_id][2] += f"|{values[2]}"
+        else:
+            main_barrel[word_id][0] += values[0]
+            main_barrel[word_id][1] += values[1]
+            main_barrel[word_id][2] += values[2]
+
+
 def create_inverted_barrel(forward_barrel_file):
-    # Initialize an inverted barrel where the key is wordID and the value is three concatenated strings
-    inverted_barrel = defaultdict(lambda: ["", "", ""])  # Three strings: docIDs, frequencies, hitlists
+    inverted_barrel = defaultdict(lambda: ["", "", ""])
 
     with open(forward_barrel_file, mode='r', encoding='utf-8') as file:
+        print("Processing " + forward_barrel_file)
         reader = csv.DictReader(file)
-
-        for row in reader:
-            # Extract values from the forward barrel row
-            word_id = int(row['wordID'])
-            doc_id = row['docID']  # Keep as string for concatenation
-            frequency = row['frequency']  # Keep as string for concatenation
-            hitlist = row['hitlist']
+        
+        chunk_size = 10000
+        chunk = []
+        
+        with ThreadPoolExecutor() as executor:
+            futures = []
+            for row in reader:
+                chunk.append(row)
+                if len(chunk) >= chunk_size:
+                    futures.append(executor.submit(process_chunk, chunk))
+                    chunk = []
             
-            # Append the docID, frequency, and hitlist to the corresponding strings for this wordID
-            if inverted_barrel[word_id][0]:  # Add a | if not the first value
-                inverted_barrel[word_id][0] += f"|{doc_id}"
-                inverted_barrel[word_id][1] += f"|{frequency}"
-                inverted_barrel[word_id][2] += f"|{hitlist}"
-            else:  # First value, no |
-                inverted_barrel[word_id][0] += doc_id
-                inverted_barrel[word_id][1] += frequency
-                inverted_barrel[word_id][2] += hitlist
-
+            if chunk:
+                futures.append(executor.submit(process_chunk, chunk))
+            
+            for future in futures:
+                local_inverted_barrel = future.result()
+                merge_inverted_barrels(inverted_barrel, local_inverted_barrel)
+    
     return inverted_barrel
 
 def save_inverted_barrel(inverted_barrel, output_file):
@@ -40,19 +73,14 @@ def save_inverted_barrel(inverted_barrel, output_file):
         fieldnames = ['wordID', 'docID', 'frequency', 'hitlist']
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
-
-        # Iterate through the inverted barrel structure
-        for word_id, lists in inverted_barrel.items():
-            doc_ids = str(lists[0])
-            frequencies = lists[1]
-            hitlists = lists[2]
+        for word_id, values in inverted_barrel.items():
             writer.writerow({
                 'wordID': word_id,
-                'docID': doc_ids,
-                'frequency': frequencies,
-                'hitlist': hitlists
-                })
-            inverted_barrel[word_id].clear()
+                'docID': values[0],
+                'frequency': values[1],
+                'hitlist': values[2]
+            })
+        inverted_barrel[word_id].clear()
 
 def create_offsets(input_file, output_file):
     """
@@ -89,33 +117,26 @@ def load_offsets(offset_file):
         print(f"Error loading offsets: {e}")
     return offsets
 
-def process_forward_barrels(forward_barrels_dir, inverted_barrels_dir, offset_barrel_dir):
+def process_forward_barrels(forward_barrel_files, inverted_barrels_dir, offset_barrels_dir):
     """
-    Processes all forward barrel files in the directory, creating and saving inverted barrels.
+    Process forward barrels to create inverted barrels.
     """
-    # Ensure the output directory exists
     os.makedirs(inverted_barrels_dir, exist_ok=True)
-    
-    # Create the output directory if it doesn't exist
-    os.makedirs(offset_barrel_dir, exist_ok=True)
+    os.makedirs(offset_barrels_dir, exist_ok=True)
 
-    # Iterate over all forward barrel files in the input directory
-    for file_name in os.listdir(forward_barrels_dir):
-        if file_name.startswith('forward_barrel_') and file_name.endswith('.csv'):
-            forward_barrel_file = os.path.join(forward_barrels_dir, file_name)
-            inverted_barrel_file = os.path.join(inverted_barrels_dir, file_name.replace('forward_barrel_', 'inverted_barrel_'))
-            offset_barrel_file = os.path.join(offset_barrel_dir, file_name.replace('forward_barrel_', 'inverted_barrel_').replace('.csv', '.bin'))
-            
-            # Step 1: Load forward barrel into an inverted barrel (dictionary structure)
-            inverted_barrel = create_inverted_barrel(forward_barrel_file)
+    for forward_barrel_file in forward_barrel_files:
+        # Process each forward barrel file
+        inverted_barrel = create_inverted_barrel(forward_barrel_file)
+        barrel_number = os.path.basename(forward_barrel_file).split('_')[-1].split('.')[0]
+        inverted_barrel_file = os.path.join(inverted_barrels_dir, f'inverted_barrel_{barrel_number}.csv')
+        offset_file = os.path.join(offset_barrels_dir, f'inverted_barrel_{barrel_number}.bin')
+        
+        save_inverted_barrel(inverted_barrel, inverted_barrel_file)
+        create_offsets(inverted_barrel_file, offset_file)
 
-            # Step 2: Save the inverted barrel to the output directory
-            save_inverted_barrel(inverted_barrel, inverted_barrel_file)
+        print(f"Processed forward barrel: {forward_barrel_file}")
 
-            # Step 3: Generate offset file for the inverted barrel
-            create_offsets(inverted_barrel_file, offset_barrel_file)
-
-    print(f"All inverted barrels have been processed and saved in '{inverted_barrels_dir}'.")
+    print("Inverted barrels created successfully.")
 
 
 ## Use this method in query processing, this was added here to test the offsets 
@@ -139,14 +160,3 @@ def get_row_by_word_id(word_id, inverted_barrel_file, offset_file):
     except FileNotFoundError as e:
         print(f"Error: {e}")
         return None
-
-
-# Main program
-if __name__ == "__main__":
-    # Directory paths
-    forward_barrels_dir = r'C:\Users\DELL\Desktop\Search-Engine-DSA\forward_barrels'  # Directory containing forward barrels
-    inverted_barrels_dir = r'C:\Users\DELL\Desktop\Search-Engine-DSA\inverted_barrels'  # Directory to save inverted barrels
-    offset_barrels_dir = r'C:\Users\DELL\Desktop\Search-Engine-DSA\offset_barrels'  # Directory to save inverted barrels
-
-    # Process all forward barrels
-    process_forward_barrels(forward_barrels_dir, inverted_barrels_dir,offset_barrels_dir)
