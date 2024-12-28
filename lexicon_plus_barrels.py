@@ -208,7 +208,7 @@ def add_doc_to_docMapper(url, read_docs):
     
     return read_docs
 
-def process_article_data(data, lexicon, read_docs, forward_barrels, barrel_directory):
+def process_article_data(data, lexicon, read_docs, barrel_directory):
     """
     Process articles and update lexicon, forward index, and barrels.
     Skip articles with URLs already present in read_docs.
@@ -216,6 +216,7 @@ def process_article_data(data, lexicon, read_docs, forward_barrels, barrel_direc
     global doc_id_counter  # Ensure doc_id_counter updates only for new documents
     counter = 0  # Initialize the counter outside the loop
     
+    forward_barrels = defaultdict(lambda: defaultdict(lambda: defaultdict(list))) 
     
     os.makedirs(barrel_directory, exist_ok=True)  # Ensure the directory exists
 
@@ -263,7 +264,7 @@ def process_article_data(data, lexicon, read_docs, forward_barrels, barrel_direc
         forward_barrels.clear()
 
     print(f"Processed {len(data)} articles.")
-    return lexicon, forward_barrels, read_docs
+    return lexicon, read_docs
 
 
 
@@ -279,11 +280,10 @@ def main():
     # Load the lexicon, forward index, and docMapper
     lexicon = load_lexicon(lexicon_file)
     read_docs = load_read_docs(docMapper_file)
-    forward_barrels = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # Barrels dictionary to store wordID and hits by docID
     
 
     # Process the articles and update lexicon, forward index, and barrels
-    lexicon, barrels, read_docs = process_article_data(article_data, lexicon, read_docs, forward_barrels, barrel_directory)
+    lexicon, read_docs = process_article_data(article_data, lexicon, read_docs, barrel_directory)
     
     # Save the updated lexicon, forward index, and barrels
     save_lexicon(lexicon, lexicon_file)
@@ -293,4 +293,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

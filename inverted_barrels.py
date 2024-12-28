@@ -95,6 +95,9 @@ def process_forward_barrels(forward_barrels_dir, inverted_barrels_dir, offset_ba
     """
     # Ensure the output directory exists
     os.makedirs(inverted_barrels_dir, exist_ok=True)
+    
+    # Create the output directory if it doesn't exist
+    os.makedirs(offset_barrel_dir, exist_ok=True)
 
     # Iterate over all forward barrel files in the input directory
     for file_name in os.listdir(forward_barrels_dir):
