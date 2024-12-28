@@ -1,29 +1,55 @@
+from flask import Flask, request, jsonify
 import csv
-#from sortedcontainers import SortedList
-import lexicon_plus_barrels as lb
+import pandas as pd
 import threading as th
+import lexicon_plus_barrels as lb
 import ranking as rk
 import json
 import inverted_barrels as ib
+from flask_cors import CORS
+# # Initialize Flask app
+app = Flask(__name__)
+CORS(app)
+# Load docmapper.json once during initialization for O(1) lookups
+with open(r"C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\Search-Engine-DSA NEW\\Search-Engine-DSA\\docmapper.json", 'r', encoding='utf-8') as docmapper_file:
+    doc_mapper = json.load(docmapper_file)
+
+# Load the CSV file containing document details
+csv_file_path = r'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\50000articles.csv'
+documents_df = pd.read_csv(csv_file_path)
+
+# Ensure 'url' column is used as the index for quick access
+documents_df.set_index('url', inplace=True)
+
+@app.route('/search', methods=['POST'])
+def search():
+    data = request.json
+    query = data.get('query')
+    lexicon_path =r"C:\\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\Search-Engine-DSA\lexicon.json"
+
+    if not query:
+        return jsonify({"error": "Both 'query' are required."}), 400
+
+    try:
+        results, total_docs = get_results(query, lexicon_path)
+        return jsonify({"total_results": total_docs, "results": results}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 def get_results(query, lexicon_path):
     query_tokens = []
     for word in query.split():
-        tokenized_words = lb.split_token(word)  # Tokenize each word
+        tokenized_words = lb.split_token(word)
         for token in tokenized_words:
-            processed_word = lb.preprocess_word(token)  # Preprocess each token
+            processed_word = lb.preprocess_word(token)
             if processed_word is not None:
                 query_tokens.append(processed_word)
             else:
-                print(f"Error: Query word '{token}' could not be processed.")
-                return None
+                raise ValueError(f"Query word '{token}' could not be processed.")
 
-    print("Processed tokens:", query_tokens)
-    
     words = {}
     threads = []
-    
-    # Retrieve documents for each word in parallel
+
     for word in query_tokens:
         this_thread = th.Thread(target=retrieve_word_docs, args=(word, lexicon_path, words))
         threads.append(this_thread)
@@ -32,17 +58,14 @@ def get_results(query, lexicon_path):
     for thread in threads:
         thread.join()
 
-    # Compute intersections for all retrieved document lists
-    doc_lists = [docs for docs in words.values() if docs]  # Only include non-empty doc lists
+    doc_lists = [docs for docs in words.values() if docs]
     intersections = rk.intersect(doc_lists)
 
-    # Rank documents for each word based on intersections
     ranked_docs = []
     for docs in words.values():
         if docs:
             ranked_docs.extend(rk.rank_docs(docs, intersections))
 
-    # Remove duplicates from ranked documents (based on doc_id)
     result_docs_set = set()
     unique_result_docs = []
     for score, doc_id in ranked_docs:
@@ -50,10 +73,8 @@ def get_results(query, lexicon_path):
             unique_result_docs.append((score, doc_id))
             result_docs_set.add(doc_id)
 
-    # Sort documents by their score in descending order (highest score first)
-    sorted_docs = sorted(unique_result_docs, key=lambda x: -x[0])  # Sort by score in descending order
+    sorted_docs = sorted(unique_result_docs, key=lambda x: -x[0])
 
-    # Get detailed document info for each sorted document
     results = []
     threads = []
 
@@ -65,81 +86,65 @@ def get_results(query, lexicon_path):
     for thread in threads:
         thread.join()
 
-    # Display the sorted documents
-    print("Sorted results (by relevance):")
-    for idx, result in enumerate(results):
-        print(f"Rank {idx + 1}: {result}")
-
     return results, len(sorted_docs)
 
-
-# Function to retrieve word documents from lexicon and inverted barrel files
 def retrieve_word_docs(word, lexicon_path, words):
     try:
-        # Load the lexicon from the JSON file
-        with open(lexicon_path, 'r',encoding='utf-8') as file:
+        with open(lexicon_path, 'r', encoding='utf-8') as file:
             lexicon = json.load(file)
 
-        # Retrieve the word ID from the lexicon
         word_id = lexicon.get(word)
         if word_id is None:
-            print(f"Error: Word '{word}' not found in lexicon.")
             return
 
-        # Load offsets from the binary offset file
         barrel_number = word_id // 1000
-        offset_file = r'C:\\Users\\DELL\\Desktop\\Search-Engine-DSA\\offset_barrels\\inverted_barrel_{}.bin'.format(barrel_number)
-        print(f"Attempting to open file: {offset_file}")
+        offset_file = r'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\Search-Engine-DSA NEW\\Search-Engine-DSA\\offset_barrels\\inverted_barrel_{}.bin'.format(barrel_number)
+        offsets = ib.load_offsets(offset_file)
 
-        offsets = ib.load_offsets(offset_file)  # Load all offsets from the binary file
+        file_name = r'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\Search-Engine-DSA NEW\\Search-Engine-DSA\\inverted_barrels\\inverted_barrel_{}.csv'.format(barrel_number)
+        offset = offsets[word_id % 1000]
 
-        # Determine the barrel number from the word ID and locate the corresponding CSV file
-        file_name = r'C:\Users\DELL\Desktop\Search-Engine-DSA\inverted_barrels\inverted_barrel_{}.csv'.format(barrel_number)
-        # Find the offset for the word ID
-        offset = offsets[word_id % 1000]  # Get the offset for the specific word
-
-        # Open the barrel file and seek to the offset
         with open(file_name, mode='r', newline='', encoding='utf-8') as file:
-            file.seek(offset)  # Seek to the position in the file where the data for this word starts
-
-            # Read the corresponding line for the word
+            file.seek(offset)
             reader = csv.reader(file)
-            row = next(reader)  # This should be the line for the word
+            row = next(reader)
 
-            # Extract document IDs and hitlist strings
-            doc_ids = row[1].split('|')  # Split doc IDs by '|'
-            hitlists = row[3].split('|')  # Split hitlists by '|'
+            doc_ids = row[1].split('|')
+            hitlists = row[3].split('|')
 
-            # Each doc_id corresponds to a hitlist, parse them as needed
             parsed_results = []
             for doc_id, hitlist in zip(doc_ids, hitlists):
-                hits = hitlist.split(';')  # Split each hitlist by ';'
-                parsed_hits = [tuple(map(int, hit.split(','))) for hit in hits]  # Convert each hit to a tuple of (hit_type, position)
-                parsed_results.append((doc_id, parsed_hits))  # Append the document ID and its corresponding hit list
+                hits = hitlist.split(';')
+                parsed_hits = [tuple(map(int, hit.split(','))) for hit in hits]
+                parsed_results.append((doc_id, parsed_hits))
 
-            # Store results in the words dictionary, keyed by the word
             words[word] = parsed_results
 
     except FileNotFoundError:
-        print(f"Error: Inverted barrel file '{file_name}' or offset file '{offset_file}' not found.")
+        pass
     except Exception as e:
         print(f"Error: {str(e)}")
 
-
-
-# Function to retrieve detailed document info (for example, metadata, content)
 def retrieve_doc_info(doc_id, results):
-    # Implement the logic for retrieving document information (e.g., title, content)
-    # For this example, it's just a placeholder
-    results.append(f"Document {doc_id} info retrieved.")
+    try:
+        doc_url = doc_mapper.get(str(doc_id))
+        if not doc_url:
+            return
 
+        if doc_url in documents_df.index:
+            doc_details = documents_df.loc[doc_url].to_dict()
+            results.append({
+                "doc_id": doc_id,
+                "title": doc_details.get('title', 'Unknown Title'),
+                "text": doc_details.get('text', 'No Content Available'),
+                "url": doc_url,
+                "authors": doc_details.get('authors', 'Unknown Author'),
+                "timestamp": doc_details.get('timestamp', 'Unknown Timestamp'),
+                "tags": doc_details.get('tags', 'No Tags')
+            })
+
+    except Exception as e:
+        print(f"Error while retrieving document info for doc_id {doc_id}: {str(e)}")
 
 if __name__ == "__main__":
-    query_word = "mental"
-    lexicon_path = "lexicon.json"  # Update this path to the actual lexicon JSON file
-
-    results, total_docs = get_results(query_word, lexicon_path)
-    if results:
-        print(f"\nTotal results for '{query_word}': {total_docs}")
-    else:
-        print("No results found.")
+    app.run(debug=True)
