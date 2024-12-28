@@ -5,8 +5,12 @@ import threading as th
 import ranking as rk
 import json
 import inverted_barrels as ib
+import sys
 
-def get_results(query, lexicon_path):
+# Increase the CSV field size limit
+csv.field_size_limit(10**7)
+
+def get_results(query, lexicon):
     query_tokens = []
     for word in query.split():
         tokenized_words = lb.split_token(word)  # Tokenize each word
@@ -25,7 +29,7 @@ def get_results(query, lexicon_path):
     
     # Retrieve documents for each word in parallel
     for word in query_tokens:
-        this_thread = th.Thread(target=retrieve_word_docs, args=(word, lexicon_path, words))
+        this_thread = th.Thread(target=retrieve_word_docs, args=(word, lexicon, words))
         threads.append(this_thread)
         this_thread.start()
 
@@ -74,12 +78,9 @@ def get_results(query, lexicon_path):
 
 
 # Function to retrieve word documents from lexicon and inverted barrel files
-def retrieve_word_docs(word, lexicon_path, words):
+def retrieve_word_docs(word, lexicon, words):
     try:
-        # Load the lexicon from the JSON file
-        with open(lexicon_path, 'r',encoding='utf-8') as file:
-            lexicon = json.load(file)
-
+        
         # Retrieve the word ID from the lexicon
         word_id = lexicon.get(word)
         if word_id is None:
@@ -89,8 +90,7 @@ def retrieve_word_docs(word, lexicon_path, words):
         # Load offsets from the binary offset file
         barrel_number = word_id // 1000
         offset_file = r'C:\\Users\\DELL\\Desktop\\Search-Engine-DSA\\offset_barrels\\inverted_barrel_{}.bin'.format(barrel_number)
-        print(f"Attempting to open file: {offset_file}")
-
+        
         offsets = ib.load_offsets(offset_file)  # Load all offsets from the binary file
 
         # Determine the barrel number from the word ID and locate the corresponding CSV file
@@ -135,10 +135,11 @@ def retrieve_doc_info(doc_id, results):
 
 
 if __name__ == "__main__":
-    query_word = "mental"
     lexicon_path = "lexicon.json"  # Update this path to the actual lexicon JSON file
-
-    results, total_docs = get_results(query_word, lexicon_path)
+    lexicon= lb.load_lexicon(lexicon_path)
+    query_word = "mental"
+    
+    results, total_docs = get_results(query_word, lexicon)
     if results:
         print(f"\nTotal results for '{query_word}': {total_docs}")
     else:
