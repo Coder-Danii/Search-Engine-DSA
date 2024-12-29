@@ -1,6 +1,6 @@
-import axios from 'axios';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { ArticleList } from '../components/ArticleList';
 import { Modal } from '../components/Modal';
 import { MustacheIcon } from '../components/MustacheIcon';
@@ -11,6 +11,7 @@ import { SortOptions } from '../components/sortOptions';
 import { Pagination } from '../components/Pagination';
 import { cleanTag } from '../utils/stringUtils';
 import { jokes } from '../data/jokes';
+import { AddDocumentModal } from '../components/AddDocumentModal';
 
 function useQuery() {
   return new URLSearchParams(useLocation().search);
@@ -19,6 +20,7 @@ function useQuery() {
 function SearchResultsPage() {
   const [currentJoke, setCurrentJoke] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState('');
@@ -141,8 +143,14 @@ function SearchResultsPage() {
   };
 
   const handleAddDocument = () => {
-    // Implement document addition logic
-    console.log('Add document clicked');
+    setIsAddModalOpen(true);
+  };
+
+  const handleAddSuccess = () => {
+    // Refresh the search results if needed
+    if (searchQuery) {
+      fetchResults(searchQuery);
+    }
   };
 
   const getCurrentPageResults = () => {
@@ -233,6 +241,12 @@ function SearchResultsPage() {
           onClose={() => setIsModalOpen(false)}
         />
       )}
+
+      <AddDocumentModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSuccess={handleAddSuccess}
+      />
     </div>
   );
 }

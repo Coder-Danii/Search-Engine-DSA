@@ -1,13 +1,12 @@
 from collections import defaultdict
 import csv
 import os
-
 from concurrent.futures import ThreadPoolExecutor
-
 from collections import defaultdict
 import csv
 import struct
 
+# Function to process a chunk of rows from the forward barrel
 def process_chunk(chunk):
     local_inverted_barrel = defaultdict(lambda: ["", "", ""])
     for row in chunk:
@@ -26,6 +25,7 @@ def process_chunk(chunk):
             local_inverted_barrel[word_id][2] += hitlist
     return local_inverted_barrel
 
+# Function that merges chunk after they have been processed
 def merge_inverted_barrels(main_barrel, local_barrel):
     for word_id, values in local_barrel.items():
         if main_barrel[word_id][0]:
@@ -37,7 +37,7 @@ def merge_inverted_barrels(main_barrel, local_barrel):
             main_barrel[word_id][1] += values[1]
             main_barrel[word_id][2] += values[2]
 
-
+# Function takes one forward barrel file and converted it in inverted barrel
 def create_inverted_barrel(forward_barrel_file):
     inverted_barrel = defaultdict(lambda: ["", "", ""])
 
@@ -48,6 +48,7 @@ def create_inverted_barrel(forward_barrel_file):
         chunk_size = 10000
         chunk = []
         
+        # Process chunks in threads
         with ThreadPoolExecutor() as executor:
             futures = []
             for row in reader:
@@ -66,9 +67,8 @@ def create_inverted_barrel(forward_barrel_file):
     return inverted_barrel
 
 def save_inverted_barrel(inverted_barrel, output_file):
-    """
-    Saves the inverted barrel to a CSV file. The structure is {wordID -> [docIDs, frequencies, hitlists]}.
-    """
+    """Saves the inverted barrel to a CSV file. The structure is {wordID -> [docIDs, frequencies, hitlists]}."""
+    print(f"Saving inverted barrel to {output_file}")
     with open(output_file, mode='w', encoding='utf-8', newline='') as file:
         fieldnames = ['wordID', 'docID', 'frequency', 'hitlist']
         writer = csv.DictWriter(file, fieldnames=fieldnames)
@@ -83,9 +83,8 @@ def save_inverted_barrel(inverted_barrel, output_file):
         inverted_barrel[word_id].clear()
 
 def create_offsets(input_file, output_file):
-    """
-    Creates a binary file containing offsets for each line in a given inverted barrel CSV file.
-    """
+    """Creates a binary file containing offsets for each line in a given inverted barrel CSV file."""
+    print(f"Creating offsets for {input_file} and saving to {output_file}")
     with open(input_file, mode='r', encoding='utf-8') as file, \
          open(output_file, mode='wb') as offset_file:
         # Skip the header row
@@ -98,12 +97,10 @@ def create_offsets(input_file, output_file):
             # Write the offset directly to the binary file
             offset_file.write(struct.pack('Q', offset))
     
-    print(f"Offsets saved to {output_file}.")
+    print(f"Offsets saved to {output_file}")
 
 def load_offsets(offset_file):
-    """
-    Loads all offsets from the binary offset file into a list.
-    """
+    """Loads all offsets from the binary offset file into a list."""
     offsets = []
     try:
         with open(offset_file, mode='rb') as offset_bin:
@@ -118,9 +115,7 @@ def load_offsets(offset_file):
     return offsets
 
 def process_forward_barrels(forward_barrel_files, inverted_barrels_dir, offset_barrels_dir):
-    """
-    Process forward barrels to create inverted barrels.
-    """
+    """Process forward barrels to create inverted barrels."""
     os.makedirs(inverted_barrels_dir, exist_ok=True)
     os.makedirs(offset_barrels_dir, exist_ok=True)
 
@@ -131,32 +126,13 @@ def process_forward_barrels(forward_barrel_files, inverted_barrels_dir, offset_b
         inverted_barrel_file = os.path.join(inverted_barrels_dir, f'inverted_barrel_{barrel_number}.csv')
         offset_file = os.path.join(offset_barrels_dir, f'inverted_barrel_{barrel_number}.bin')
         
+        print(f"Processing forward barrel: {forward_barrel_file}")
+        print(f"Inverted barrel file: {inverted_barrel_file}")
+        print(f"Offset file: {offset_file}")
+
         save_inverted_barrel(inverted_barrel, inverted_barrel_file)
         create_offsets(inverted_barrel_file, offset_file)
 
         print(f"Processed forward barrel: {forward_barrel_file}")
 
-    print("Inverted barrels created successfully.")
-
-
-## Use this method in query processing, this was added here to test the offsets 
-def get_row_by_word_id(word_id, inverted_barrel_file, offset_file):
-    offsets = load_offsets(offset_file)  # Load all offsets
-
-    if word_id >= len(offsets):
-        print(f"Error: word ID {word_id} is out of range.")
-        return None
-
-    try:
-        # Get the byte offset for the given word_id
-        offset = offsets[word_id]
-        offsets.clear()
-        # Read the row from the CSV file using the offset
-        with open(inverted_barrel_file, mode='r', encoding='utf-8') as csv_file:
-            csv_file.seek(offset)
-            row = csv_file.readline().strip()  # Read the row and remove trailing whitespace
-        print(row)
-        return row
-    except FileNotFoundError as e:
-        print(f"Error: {e}")
-        return None
+    print("Inverted barrels created successfully.")

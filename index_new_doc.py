@@ -1,9 +1,12 @@
 import json
 import csv
 import os
-import pandas as pd
 from indexing import index_articles
+import file_paths as file
+from scraping import scrap_docs
 
+
+output_directory = file.new_doc_output_dir
 def json_to_csv(json_file_path, output_directory):
     # Ensure the input file exists
     if not os.path.exists(json_file_path):
@@ -48,13 +51,18 @@ def json_to_csv(json_file_path, output_directory):
     print(f"CSV file '{csv_file_path}' {'updated' if file_exists else 'created'} successfully.")
     return csv_file_path
 
-# Example usage
-output_directory = r'C:\Users\DELL\Desktop\Search-Engine-DSA\new_docs\csv_files'
-json_file_path = r'C:\Users\DELL\Desktop\Search-Engine-DSA\new_docs\json_files\test.json'
 
-dataset_file = json_to_csv(json_file_path, output_directory)
+def index_new_doc(json_file_path, output_directory):
+    dataset_file = json_to_csv(json_file_path, output_directory)
 
-if dataset_file:
-    index_articles(dataset_file)
-else:
-    print("Failed to create CSV file from JSON.")
+    if dataset_file:
+        index_articles(dataset_file)
+    else:
+        print("Failed to create CSV file from JSON.")
+    # after indexing, scrap the document
+    scrap_docs(dataset_file)
+
+
+#json_file_path = r'C:\Users\DELL\Desktop\Search-Engine-DSA\new_docs\json_files\test.json'
+
+#index_new_doc(json_file_path, output_directory)

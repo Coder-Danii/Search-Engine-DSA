@@ -29,17 +29,17 @@ function HomePage() {
             <ThemeToggle />
             <div className="container mx-auto px-4 flex flex-col justify-center min-h-screen">
                 <div className="flex flex-col items-center gap-4 -mt-32">
-                    <h1 className="text-6xl font-bold text-brown-800 dark:text-beige-100">
+                    <h1 className="text-6xl font-bold text-brown-800 dark:text-beige-100" style={{marginRight: "524px", marginBottom:"-10px"}}>
                         mid.
                     </h1>
-                    <p className="text-lg text-brown-600 dark:text-beige-300 italic mb-8">
+                    <p className="text-lg text-brown-600 dark:text-beige-300 italic mb-8" style={{marginRight: "431px", marginBottom: "-1px"}}>
                         your average search engine
                     </p>
 
                     <div className="relative w-full max-w-2xl">
                         <SearchBar setSearchQuery={handleSearch} />
                         <div
-                            className="absolute -right-16 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-brown-800 dark:bg-beige-100 flex items-center justify-center cursor-pointer"
+                            className="absolute -right-16 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-brown-800 dark:bg-beige-100 flex items-center justify-center cursor-pointer" style={{marginTop:"-78px", marginRight:"70px"}}
                             onClick={handleJokeClick}
                             ref={iconRef}
                         >

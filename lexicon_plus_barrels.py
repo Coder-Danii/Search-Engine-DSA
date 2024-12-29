@@ -9,17 +9,14 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 import sys
 
-
-# Set the standard output encoding to UTF-8 (Windows compatibility)
 sys.stdout.reconfigure(encoding='utf-8')
 
-# Initialize NLTK tools
 stop_words = set(stopwords.words('english'))
 lemmatizer = WordNetLemmatizer()
 
 # Global variables
 word_id_counter = 0
-doc_id_counter = 0  # Global variable for docs read
+doc_id_counter = 0
 
 # Define weights for each field
 weights = {
@@ -34,27 +31,24 @@ weights = {
 def split_token(token):
     return re.split(r'[-_/]', token)
 
+# Function to lemmatize a word based on its part of speech (POS)
 def lemmatize_with_pos(word):
-    # Try lemmatizing as verb
     lemmatized_word = lemmatizer.lemmatize(word, pos="v")
     if lemmatized_word != word:
         return lemmatized_word
 
-    # Try lemmatizing as noun
     lemmatized_word = lemmatizer.lemmatize(word, pos="n")
     if lemmatized_word != word:
         return lemmatized_word
-
-    # Try lemmatizing as adjective
+    
     lemmatized_word = lemmatizer.lemmatize(word, pos="a")
     if lemmatized_word != word:
         return lemmatized_word
 
-    # Try lemmatizing as adverb
     lemmatized_word = lemmatizer.lemmatize(word, pos="r")
     return lemmatized_word if lemmatized_word != word else word
 
-# Function to clean and preprocess words (lemmatization)
+# Function to clean and preprocess words
 def preprocess_word(word):
     if word.isdigit():
         return word  # Keep the word as it is if it's all digits
@@ -62,24 +56,22 @@ def preprocess_word(word):
     word = re.sub(r'[^a-zA-Z0-9]', '', word)  # Remove non-alphanumeric characters
     word = word.lower()  # Convert to lowercase
     
-    # Remove words having only 1 character
+    # Remove words having only 1 character or > 50 characters
     if len(word) == 1 or len(word) > 50:
         return None
     if word and word not in stop_words:  # Remove stopwords and empty words
         lemmatized_word = lemmatize_with_pos(word)
         
-        if len(lemmatized_word) == 1:  # Check if lemmatized word is a single letter
-            return word  # Return the original word if it's a single letter
+        if len(lemmatized_word) == 1:  
+            return word  # Return the original word if after lematization it is a single word
         
         return lemmatized_word
     return None
 
-def create_hit(field_index, position):
-    """Create a hit (word location and reference info)."""
-    return [field_index, position]
 
+### Loading Files Methods ###
+# Function to load lexicon in memory
 def load_lexicon(lexicon_json_file):
-    """Load the lexicon from a JSON file and return the last wordID."""
     global word_id_counter
     if os.path.exists(lexicon_json_file):
         try:
@@ -91,11 +83,11 @@ def load_lexicon(lexicon_json_file):
                     word_id_counter += 1
                 return lexicon
         except json.JSONDecodeError:
-            print(f"Error reading {lexicon_json_file}. Starting with an empty lexicon.")
+            print(f"{lexicon_json_file}. Starting with an empty lexicon.")
     return {}
 
+# Function to load the docID to URL mapping in memory
 def load_read_docs(doc_mapper_json):
-    """Load the doc mapper from a JSON file and return the last docID."""
     global doc_id_counter
     read_docs = {}
     
@@ -103,20 +95,21 @@ def load_read_docs(doc_mapper_json):
         try:
             with open(doc_mapper_json, 'r', encoding='utf-8') as file:
                 read_docs = json.load(file)
-                if read_docs:  # Ensure the dictionary is not empty
-                    # Get the highest docID from the keys of the dictionary
+                if read_docs:
                     doc_id_counter = list(read_docs.keys())[-1]  # get the last docID assigned
                     doc_id_counter = int(doc_id_counter)
                     print(f"The last docID read is: {doc_id_counter}")
                     doc_id_counter += 1
         except json.JSONDecodeError:
-            print(f"Error reading {doc_mapper_json}. Starting with no read docs.")
-            # If no documents have been read yet, start from 1
+            print(f"{doc_mapper_json}. Starting with no read docs.")
     
     return read_docs
 
+
+### Saving Files Methods ###
+
+# Save lexicon in the json file
 def save_lexicon(lexicon, lexicon_file):
-    """Save the lexicon to a JSON file."""
     try:
         with open(lexicon_file, 'w', encoding='utf-8') as file:
             json.dump(lexicon, file, ensure_ascii=False)
@@ -124,8 +117,9 @@ def save_lexicon(lexicon, lexicon_file):
     except IOError:
         print(f"Error writing to {lexicon_file}.")
 
+
+# Save docMapper in the json file
 def save_doc_mapper(read_docs, docMapper_file):
-    """Save the docID to URL mapping to a JSON file."""
     try:
         with open(docMapper_file, 'w', encoding='utf-8') as file:
             json.dump(read_docs, file, ensure_ascii=False)
@@ -135,12 +129,8 @@ def save_doc_mapper(read_docs, docMapper_file):
 
 # Save barrels to CSV
 def save_forward_barrels(forward_barrels, barrel_directory):
-    """
-    Saves the barrel data into separate CSV files for each barrel.
-    Each row in the CSV includes: docID, wordID, frequency, hitlist.
-    Writes the header only if the file is empty.
-    """
-    os.makedirs(barrel_directory, exist_ok=True)  # Ensure the directory exists
+    
+    os.makedirs(barrel_directory, exist_ok=True)
 
     for barrel_number, doc_map in forward_barrels.items():
         barrel_file = os.path.join(barrel_directory, f'forward_barrel_{barrel_number}.csv')
@@ -179,6 +169,10 @@ def add_word_to_lexicon(word, lexicon):
         word_id_counter += 1
     return lexicon
 
+# Function to create a hit (field_index, position) for a word
+def create_hit(field_index, position):
+    return [field_index, position]
+
 def add_word_to_forwardBarrels(docID, wordID, word_hit, forward_barrels):
     # Determine which barrel the word belongs to based on wordID
     barrel_number = wordID // 1000  # Barrel range based on wordID
@@ -187,32 +181,32 @@ def add_word_to_forwardBarrels(docID, wordID, word_hit, forward_barrels):
 
     return forward_barrels
 
+# Add docIID : url mapping
 def add_doc_to_docMapper(url, read_docs):
-    """Add a new docID and its associated URL to the docMapper if it's new."""
     global doc_id_counter
     
-    # Ensure doc_id_counter is an integer
     doc_id_counter = int(doc_id_counter)
-    read_docs[doc_id_counter] = url  # Map the new docID to the URL (no need to convert to str)
+    read_docs[doc_id_counter] = url
     doc_id_counter += 1  # Increment doc_id_counter to generate a new docID
     
     return read_docs
 
+
+
+### Actual Indexer method that creates lexicon and forward barrels
 def process_article_data(data, lexicon, read_docs, barrel_directory):
-    """
-    Process articles and update lexicon, forward index, and barrels.
-    Skip articles with URLs already present in read_docs.
-    """
-    global doc_id_counter  # Ensure doc_id_counter updates only for new documents
-    counter = 0  # Initialize the counter outside the loop
+    
+    global doc_id_counter
+    counter = 0  # Initialize the counter for no. of docs processed
     
     forward_barrels = defaultdict(lambda: defaultdict(lambda: defaultdict(list))) 
-    updated_forward_barrels = []  # List to track updated forward barrels
+    updated_forward_barrels = set()  # set to track updated forward barrels
     
-    os.makedirs(barrel_directory, exist_ok=True)  # Ensure the directory exists
+    os.makedirs(barrel_directory, exist_ok=True)
 
     for index, row in data.iterrows():
-        url = row['url']  # Extract URL of the article
+        
+        url = row['url']
         
         # Skip processing if URL is already in the read_docs
         if url in read_docs.values():
@@ -246,13 +240,13 @@ def process_article_data(data, lexicon, read_docs, barrel_directory):
         # Save and clear forward barrels every 1000 articles
         if counter % 1000 == 0:
             save_forward_barrels(forward_barrels, barrel_directory)
-            updated_forward_barrels.extend(forward_barrels.keys())  # Track updated barrels
+            updated_forward_barrels.update(forward_barrels.keys())  # Track updated barrels
             forward_barrels.clear()
 
     # Save remaining barrels after processing all articles
     if forward_barrels:
         save_forward_barrels(forward_barrels, barrel_directory)
-        updated_forward_barrels.extend(forward_barrels.keys())  # Track updated barrels
+        updated_forward_barrels.update(forward_barrels.keys())  # Track updated barrels
         forward_barrels.clear()
 
     print(f"Processed {len(data)} articles.")
