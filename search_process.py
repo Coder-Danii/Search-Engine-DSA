@@ -7,6 +7,8 @@ import ranking as rk
 import json
 import inverted_barrels as ib
 from flask_cors import CORS
+from nltk.stem import WordNetLemmatizer
+from nltk.tokenize import word_tokenize
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -17,7 +19,7 @@ with open(r"C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\
     doc_mapper = json.load(docmapper_file)
 
 # Load the CSV file containing document details
-csv_file_path = r'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\50000articles.csv'
+csv_file_path = r'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\medium_articles.csv'
 documents_df = pd.read_csv(csv_file_path)
 
 # Ensure 'url' column is used as the index for quick access
@@ -47,16 +49,39 @@ import sys
 # Increase the CSV field size limit
 csv.field_size_limit(10**7)
 
-def get_results(query, lexicon):
-    query_tokens = []
-    for word in query.split():
-        tokenized_words = lb.split_token(word)
+def process_query(query):
+
+    query_tokens = word_tokenize(query)
+
+    processed_tokens = []
+
+    for word in query_tokens:
+
+        tokenized_words = lb.split_token(word)  # Tokenize each word
+
         for token in tokenized_words:
-            processed_word = lb.preprocess_word(token)
-            if processed_word is not None:
-                query_tokens.append(processed_word)
-            else:
-                raise ValueError(f"Query word '{token}' could not be processed.")
+
+            processed_word = lb.preprocess_word(token)  # Preprocess each token
+
+            if processed_word:
+
+                processed_tokens.append(processed_word)
+
+    
+
+    query_tokens = processed_tokens
+
+    print("Processed tokens:", processed_tokens)
+
+    return processed_tokens
+
+def get_results(query, lexicon):
+    
+    query_tokens = process_query(query)
+
+    if not query_tokens:
+        print("query_tokens is None")
+        raise ValueError("Query is empty")
 
     words = {}
     threads = []
@@ -124,14 +149,17 @@ def retrieve_word_docs(word, lexicon_path, words):
             reader = csv.reader(file)
             row = next(reader)
 
-            doc_ids = row[1].split('|')
-            hitlists = row[3].split('|')
+            # Extract document IDs, frequencies, and hitlist strings
+            doc_ids = row[1].split('|')  # Split doc IDs by '|'
+            frequencies = row[2].split('|')  # Split frequencies by '|'
+            hitlists = row[3].split('|')  # Split hitlists by '|'
 
+            # Each doc_id corresponds to a hitlist and frequency, parse them as needed
             parsed_results = []
-            for doc_id, hitlist in zip(doc_ids, hitlists):
-                hits = hitlist.split(';')
-                parsed_hits = [tuple(map(int, hit.split(','))) for hit in hits]
-                parsed_results.append((doc_id, parsed_hits))
+            for doc_id, frequency, hitlist in zip(doc_ids, frequencies, hitlists):
+                hits = hitlist.split(';')  # Split each hitlist by ';'
+                parsed_hits = [tuple(map(int, hit.split(','))) for hit in hits]  # Convert each hit to a tuple of (hit_type, position)
+                parsed_results.append((doc_id, parsed_hits, int(frequency)))  # Append the document ID, its corresponding hit list, and frequency
 
             words[word] = parsed_results
 

@@ -1,20 +1,18 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { MustacheIcon } from './MustacheIcon';
-import { SearchBar } from './SearchBar';
+import { FilePlus } from 'lucide-react';
+import { ThemeToggle } from './ThemeToggle';
 
-export function SearchHeader() {
-    return (
-        <div className="flex items-center gap-6 mb-8">
-            <Link to="/" className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-brown-800 dark:bg-beige-100 flex items-center justify-center">
-                    <MustacheIcon className="w-5 h-5 text-beige-100 dark:text-brown-800" />
-                </div>
-                <span className="text-2xl font-bold text-brown-800 dark:text-beige-100">mid.</span>
-            </Link>
-            <div className="flex-1">
-                <SearchBar />
-            </div>
-        </div>
-    );
+export function SearchHeader({ title, onAddDocument }) {
+  return (
+    <div className="flex items-center justify-between px-4 py-2 bg-beige-100 dark:bg-brown-900">
+      <ThemeToggle />
+      <button
+        onClick={onAddDocument}
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brown-800 text-beige-100 dark:bg-beige-100 dark:text-brown-800 hover:opacity-90"
+      >
+        <FilePlus size={16} />
+        <span className="text-sm">Add Document</span>
+      </button>
+    </div>
+  );
 }

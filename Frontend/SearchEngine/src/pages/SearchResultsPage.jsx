@@ -5,168 +5,236 @@ import { ArticleList } from '../components/ArticleList';
 import { Modal } from '../components/Modal';
 import { MustacheIcon } from '../components/MustacheIcon';
 import { SearchBar } from '../components/SearchBar';
+import { SearchHeader } from '../components/SearchHeader';
 import { SearchTags } from '../components/SearchTags';
-import { ThemeToggle } from '../components/ThemeToggle';
+import { SortOptions } from '../components/sortOptions';
+import { Pagination } from '../components/Pagination';
+import { cleanTag } from '../utils/stringUtils';
 import { jokes } from '../data/jokes';
 
 function useQuery() {
-    return new URLSearchParams(useLocation().search);
+  return new URLSearchParams(useLocation().search);
 }
 
 function SearchResultsPage() {
-    const [currentJoke, setCurrentJoke] = useState('');
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const iconRef = useRef(null);
-    const [searchResults, setSearchResults] = useState([]);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [tags, setTags] = useState([]);
-    const navigate = useNavigate();
-    const query = useQuery().get('q');
+  const [currentJoke, setCurrentJoke] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [tags, setTags] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [searchTime, setSearchTime] = useState(null);
+  const [currentSort, setCurrentSort] = useState('relevance');
+  const itemsPerPage = 10;
+  const navigate = useNavigate();
+  const query = useQuery().get('q');
 
-    const handleJokeClick = () => {
-        const randomIndex = Math.floor(Math.random() * jokes.length);
-        setCurrentJoke(jokes[randomIndex].joke);
-        setIsModalOpen(true);
-    };
+  const handleJokeClick = () => {
+    const randomIndex = Math.floor(Math.random() * jokes.length);
+    setCurrentJoke(jokes[randomIndex].joke);
+    setIsModalOpen(true);
+  };
 
-    const fetchResults = async (query) => {
-        if (!query.trim()) {
-            setError('Please enter a valid search query.');
-            setSearchResults([]);
-            setTags([]);
-            return;
-        }
+  const sortResults = (results, sortType) => {
+    switch (sortType) {
+      case 'date':
+        return [...results].sort((a, b) => 
+          new Date(b.timestamp) - new Date(a.timestamp)
+        );
+      case 'alpha':
+        return [...results].sort((a, b) => 
+          a.title.localeCompare(b.title)
+        );
+      case 'relevance':
+      default:
+        return results;
+    }
+  };
 
-        setLoading(true);
-        setError('');
+  const fetchResults = async (query) => {
+    if (!query.trim()) {
+      setError('Please enter a valid search query.');
+      setSearchResults([]);
+      setTags([]);
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setSearchResults([]);
+    setCurrentPage(1);
+
+    const startTime = performance.now();
+
+    try {
+      const response = await axios.post('http://127.0.0.1:5000/search', {
+        query: query,
+        sort: currentSort
+      });
+
+      const endTime = performance.now();
+      setSearchTime((endTime - startTime) / 1000);
+
+      if (response.data.results.length === 0) {
+        setError('No results found.');
         setSearchResults([]);
+        setTags([]);
+        setTotalPages(1);
+      } else {
+        setError('');
+        const sortedResults = sortResults(response.data.results, currentSort);
+        setSearchResults(sortedResults);
+        setTotalPages(Math.ceil(sortedResults.length / itemsPerPage));
 
-        try {
-            const response = await axios.post('http://127.0.0.1:5000/search', {
-                query: query
-            });
-            if (response.data.results.length === 0) {
-                setError('No results found.');
-                setSearchResults([]);
-                setTags([]);
-            } else {
-                setError('');
-                setSearchResults(response.data.results);
+        const cleanedTags = response.data.tags.map(cleanTag);
+        const tagCounts = cleanedTags.reduce((acc, tag) => {
+          acc[tag] = (acc[tag] || 0) + 1;
+          return acc;
+        }, {});
 
-                // Count tag frequencies
-                const tagCounts = response.data.tags.reduce((acc, tag) => {
-                    acc[tag] = (acc[tag] || 0) + 1;
-                    return acc;
-                }, {});
+        const sortedTags = Object.entries(tagCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([tag]) => tag);
 
-                // Get the top 5 most common tags
-                const sortedTags = Object.entries(tagCounts)
-                    .sort((a, b) => b[1] - a[1]) // Sort by frequency
-                    .slice(0, 5) // Take the top 5
-                    .map(([tag]) => tag); // Extract only tag names
+        setTags(sortedTags);
+      }
+    } catch (err) {
+      setError('An error occurred while fetching results.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-                setTags(sortedTags);
-            }
-        } catch (err) {
-            setError('An error occurred while fetching results.');
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    };
+  useEffect(() => {
+    if (query) {
+      setSearchQuery(query);
+      fetchResults(query);
+    }
+  }, [query, currentSort]);
 
-    useEffect(() => {
-        if (query) {
-            setSearchQuery(query);
-            fetchResults(query);
-        }
-    }, [query]);
+  const handleSearch = (newQuery) => {
+    navigate(`/search?q=${encodeURIComponent(newQuery)}`);
+    fetchResults(newQuery);
+  };
 
-    const handleSearch = (newQuery) => {
-        // Make sure search query does not include a tag on Enter key press
-        if (newQuery.trim() && !newQuery.includes(' ')) {
-            navigate(`/search?q=${encodeURIComponent(newQuery)}`);
-            fetchResults(newQuery);  // Fetch results based on the search query
-        }
-    };
+  const handleTagClick = (tag) => {
+    const cleanedTag = cleanTag(tag);
+    setSearchQuery(cleanedTag);
+    navigate(`/search?q=${encodeURIComponent(cleanedTag)}`);
+    fetchResults(cleanedTag);
+  };
 
-    const handleTagClick = (tag) => {
-        // Update search query by appending the tag, but prevent double-adding on Enter press
-        const newQuery = searchQuery.trim()
-            ? `${searchQuery} ${tag}`.trim()
-            : tag;
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    window.scrollTo(0, 0);
+  };
 
-        setSearchQuery(newQuery);
-    };
+  const handleSortChange = (sortOption) => {
+    setCurrentSort(sortOption);
+    const sortedResults = sortResults(searchResults, sortOption);
+    setSearchResults(sortedResults);
+  };
 
-    const handleLike = () => {
-        const happySound = new Audio('/happy.mp3');
-        happySound.play();
-        setIsModalOpen(false);
-    };
+  const handleAddDocument = () => {
+    // Implement document addition logic
+    console.log('Add document clicked');
+  };
 
-    const handleDislike = () => {
-        const sadSound = new Audio('/sad.mp3');
-        sadSound.play();
-        setIsModalOpen(false);
-    };
+  const getCurrentPageResults = () => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return searchResults.slice(startIndex, endIndex);
+  };
 
-    return (
-        <div className="min-h-screen bg-beige-100 dark:bg-brown-900 transition-colors">
-            <ThemeToggle />
-            <div className="container mx-auto px-4 py-20">
-                <div className="flex flex-col items-start gap-1 mb-8 ml-8" style={{ marginTop: '50px' }}>
-                    <h1 className="text-6xl font-bold text-brown-800 dark:text-beige-100" style={{ marginLeft: '263px' }}>
-                        mid.
-                    </h1>
-                    <p className="text-lg text-brown-600 dark:text-beige-300 italic" style={{ marginLeft: '266px' }}>
-                        your average search engine
-                    </p>
-                </div>
-
-                <div className="relative">
-                    <div
-                        className="absolute right-4 -top-12 w-12 h-12 rounded-full bg-brown-800 dark:bg-beige-100 flex items-center justify-center"
-                        style={{ marginTop: '-50px', marginRight: '284px' }}
-                        onClick={handleJokeClick}
-                        ref={iconRef}
-                    >
-                        <MustacheIcon className="w-8 h-8 text-beige-100 dark:text-brown-800" />
-                    </div>
-
-                    <div className="flex justify-center">
-                        <SearchBar
-                            setSearchQuery={handleSearch}
-                            searchQuery={searchQuery}
-                            fetchResults={fetchResults}
-                            setQuery={setSearchQuery} // Pass setSearchQuery to update the state
-                        />
-                    </div>
-                </div>
-
-                {/* Display Search Tags */}
-                {tags.length > 0 && <SearchTags tags={tags} onTagClick={handleTagClick} />}
-
-                {/* Display Search Results */}
-                <div>
-                    {loading && <p>Loading...</p>}
-                    {error && <p>{error}</p>}
-                    <ArticleList articles={searchResults} />
-                </div>
-
-                {isModalOpen && (
-                    <Modal
-                        joke={currentJoke}
-                        onLike={handleLike}
-                        onDislike={handleDislike}
-                        iconRef={iconRef}
-                    />
-                )}
+  return (
+    <div className="min-h-screen bg-beige-100 dark:bg-brown-900 transition-colors">
+      <div className="sticky top-0 z-40 bg-beige-100 dark:bg-brown-900 shadow-md">
+        <div className="container mx-auto px-4 py-4">
+          <SearchHeader title="mid." onAddDocument={handleAddDocument} />
+          
+          <div className="flex items-center justify-between mb-4">
+            <h1 
+              className="text-4xl font-bold text-brown-800 dark:text-beige-100 cursor-pointer" 
+              onClick={() => navigate('/')}
+            >
+              mid.
+            </h1>
+            <div className="flex-grow mx-8 max-w-2xl">
+              <SearchBar
+                setSearchQuery={handleSearch}
+                searchQuery={searchQuery}
+                fetchResults={fetchResults}
+                setQuery={setSearchQuery}
+              />
             </div>
+            <div
+              className="w-12 h-12 rounded-full bg-brown-800 dark:bg-beige-100 flex items-center justify-center cursor-pointer"
+              onClick={handleJokeClick}
+            >
+              <MustacheIcon className="w-8 h-8 text-beige-100 dark:text-brown-800" />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between mt-4">
+            <div className="flex items-center gap-4">
+              {searchQuery && (
+                <h2 className="text-xl text-brown-800 dark:text-beige-100">
+                  Showing results for "{searchQuery}"
+                </h2>
+              )}
+              {searchTime && (
+                <span className="text-xs text-brown-600 dark:text-beige-400">
+                  ({searchResults.length} results in {searchTime.toFixed(2)} seconds)
+                </span>
+              )}
+            </div>
+            <SortOptions currentSort={currentSort} onSortChange={handleSortChange} />
+          </div>
+
+          {tags.length > 0 && (
+            <div className="mt-2">
+              <SearchTags tags={tags} onTagClick={handleTagClick} />
+            </div>
+          )}
         </div>
-    );
+      </div>
+
+      <div className="container mx-auto px-4 py-4">
+        {loading ? (
+          <div className="flex justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brown-800 dark:border-beige-100"></div>
+          </div>
+        ) : error ? (
+          <div className="text-center text-brown-800 dark:text-beige-100">{error}</div>
+        ) : (
+          <>
+            <ArticleList articles={getCurrentPageResults()} />
+            {searchResults.length > 0 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+              />
+            )}
+          </>
+        )}
+      </div>
+
+      {isModalOpen && (
+        <Modal
+          joke={currentJoke}
+          onLike={() => setIsModalOpen(false)}
+          onDislike={() => setIsModalOpen(false)}
+          onClose={() => setIsModalOpen(false)}
+        />
+      )}
+    </div>
+  );
 }
 
 export default SearchResultsPage;

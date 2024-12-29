@@ -7,9 +7,10 @@ def rank_docs(docs, intersections):
     for doc in docs:
         doc_id = doc[0]
         hit_list = doc[1]
+        frequency = doc[2]  # Use frequency instead of hitlist length
 
-        # Base score based on TEXT hits, capped at 20
-        this_score = min(len(hit_list), 20)
+        # Base score based on frequency, capped at 20
+        this_score = min(frequency, 20)
 
         # Intersection multiplier
         multiplier = intersection_multiplier(doc, intersections)
@@ -51,7 +52,7 @@ def rank_docs(docs, intersections):
         # Apply the intersection multiplier to the score
         this_score *= multiplier
 
-        # Add score and document ID to the SortedList (positive score for descending order)
+        # Add score and document ID to the SortedList (negative score for descending order)
         top_docs.add((this_score, doc_id))
 
     return top_docs
@@ -105,5 +106,5 @@ def process_docs(doc_data):
     doc_list = []
     for doc_id, freq, hitlist_str in zip(doc_data['doc_ids'], doc_data['frequencies'], doc_data['hitlists']):
         hitlist = parse_hitlist(hitlist_str)
-        doc_list.append((int(doc_id), hitlist))
+        doc_list.append((int(doc_id), hitlist, int(freq)))  # Include frequency in the tuple
     return doc_list
