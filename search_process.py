@@ -187,17 +187,22 @@ def retrieve_doc_info(doc_id, results):
         if doc_id in scraped_articles_df.index:
             doc_details = scraped_articles_df.loc[doc_id].to_dict()
             results.append({
-                "doc_id": doc_id,
-                "title": doc_details.get('title', 'Unknown Title'),
-                "text": doc_details.get('first_two_lines', 'No Content Available'),
-                "url": doc_details.get('url', 'Unknown URL'),
-                "authors": doc_details.get('author', 'Unknown Author'),
-                "timestamp": doc_details.get('timestamp', 'Unknown Timestamp'),
-                "tags": doc_details.get('tags', 'No Tags')
-            })
+            "doc_id": doc_id,
+            "title": sanitize_value(doc_details.get('title', 'Unknown Title')),
+            "text": sanitize_value(doc_details.get('first_two_lines', 'No Content Available')),
+            "url": sanitize_value(doc_details.get('url', 'Unknown URL')),
+            "authors": "Disney",
+            "timestamp": sanitize_value(doc_details.get('timestamp', 'Unknown Timestamp')),
+            "tags": sanitize_value(doc_details.get('tags', 'No Tags'))
+        })
     except Exception as e:
         pass
-
+def sanitize_value(value, default_value='Unknown'):
+    # Check if the value is NaN or null (as strings) and return the default_value
+    if isinstance(value, str) and (value.lower() == "nan" or value.lower() == "null"):
+        return default_value
+    # Return the original value if it's not NaN or null
+    return value or default_value
 @app.route('/addDocument', methods=['POST'])
 def add_document():
     try:

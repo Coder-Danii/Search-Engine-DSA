@@ -15,7 +15,7 @@ export function ArticleList({ articles }) {
             ) : (
                 articleArray.map((article) => (
                     <article
-                        key={article.doc_id}
+                        key={typeof article.doc_id === 'object' ? JSON.stringify(article.doc_id) : article.doc_id}
                         className="flex gap-6 p-4 bg-white dark:bg-brown-800 rounded-lg shadow-md border-2 border-brown-700 dark:border-beige-300"
                     >
                         <img
@@ -25,23 +25,25 @@ export function ArticleList({ articles }) {
                         />
                         <div className="flex flex-col flex-1">
                             <h2 className="text-xl font-bold text-brown-800 dark:text-beige-100 mb-2">
-                                {article.title || "Untitled"}
+                                {typeof article.title === 'object' ? JSON.stringify(article.title) : article.title || "Untitled"}
                             </h2>
                             <p className="text-brown-600 dark:text-beige-300 mb-4 line-clamp-2">
-                                {article.text ? article.text.substring(0, 100)+"..." : "No preview available"}
+                                {typeof article.text === 'object' ? JSON.stringify(article.text) : article.text || "No preview available"}
                             </p>
                             <div className="mt-auto">
                                 <span className="text-sm text-brown-500 dark:text-beige-200">
-                                    By {article.authors.replace("[","").replace("'","").replace("]","").replace("'","") || "Unknown Author"}
+                                    By {typeof article.authors === 'object' ? JSON.stringify(article.authors) : article.authors || "Unknown Author"}
                                 </span>
                                 <br />
                                 <span className="text-sm text-grey-500 dark:text-grey-200">
-                                    {article.timestamp.split(" ")[0]}
+                                    {typeof article.timestamp === 'object' ? JSON.stringify(article.timestamp) : article.timestamp || "No timestamp available"}
                                 </span>
                             </div>
                         </div>
                     </article>
                 ))
+                
+                
             )}
         </div>
     );

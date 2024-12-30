@@ -1,17 +1,17 @@
+import axios from 'axios';
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { AddDocumentModal } from '../components/AddDocumentModal';
 import { ArticleList } from '../components/ArticleList';
 import { Modal } from '../components/Modal';
 import { MustacheIcon } from '../components/MustacheIcon';
+import { Pagination } from '../components/Pagination';
 import { SearchBar } from '../components/SearchBar';
 import { SearchHeader } from '../components/SearchHeader';
 import { SearchTags } from '../components/SearchTags';
 import { SortOptions } from '../components/sortOptions';
-import { Pagination } from '../components/Pagination';
-import { cleanTag } from '../utils/stringUtils';
 import { jokes } from '../data/jokes';
-import { AddDocumentModal } from '../components/AddDocumentModal';
+import { cleanTag } from '../utils/stringUtils';
 
 function useQuery() {
   return new URLSearchParams(useLocation().search);
@@ -55,7 +55,20 @@ function SearchResultsPage() {
         return results;
     }
   };
-
+  const cleanData = (data) => {
+    // Recursively traverse and clean the object
+    if (Array.isArray(data)) {
+      return data.map(cleanData); // Clean each item in the array
+    } else if (data && typeof data === 'object') {
+      return Object.fromEntries(
+        Object.entries(data).map(([key, value]) => [
+          key,
+          value === null || (typeof value === 'number' && isNaN(value)) ? null : cleanData(value),
+        ])
+      );
+    }
+    return data; // Return primitives as-is
+  };
   const fetchResults = async (query) => {
     if (!query.trim()) {
       setError('Please enter a valid search query.');
@@ -79,19 +92,21 @@ function SearchResultsPage() {
 
       const endTime = performance.now();
       setSearchTime((endTime - startTime) / 1000);
-
-      if (response.data.results.length === 0) {
+      console.log(response.data);
+      const data=response.data;
+      if (data.results.length === 0) {
         setError('No results found.');
         setSearchResults([]);
         setTags([]);
         setTotalPages(1);
       } else {
         setError('');
-        const sortedResults = sortResults(response.data.results, currentSort);
+        const sortedResults = sortResults(data.results, currentSort);
+        console.log(sortedResults);
         setSearchResults(sortedResults);
         setTotalPages(Math.ceil(sortedResults.length / itemsPerPage));
 
-        const cleanedTags = response.data.tags.map(cleanTag);
+        const cleanedTags = data.tags.map(cleanTag);
         const tagCounts = cleanedTags.reduce((acc, tag) => {
           acc[tag] = (acc[tag] || 0) + 1;
           return acc;
