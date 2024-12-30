@@ -25,16 +25,22 @@ app = Flask(__name__)
 CORS(app)
 
 # Paths for files
-docmapper_path = r"C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\Search-Engine-DSA\docmapper.json"
-csv_file_path = r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\medium_articles.csv' 
-scraped_articles_path = r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\scraped_medium_articles.csv'
+#Ushba
+docmapper_path = file_paths.docMapper_file
+csv_file_path = r'C:\Users\DELL\Desktop\University\Data Structures and Algorithms\Project\Medium Articles\medium_articles.csv'
+scraped_articles_path = file_paths.scraped_articles_file
+# Dansh
+#docmapper_path = r"C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\Search-Engine-DSA\docmapper.json"
+#csv_file_path = r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\medium_articles.csv' 
+#scraped_articles_path = r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\scraped_medium_articles.csv'
+
 # Load docmapper.json once during initialization
 with open(docmapper_path, 'r', encoding='utf-8') as docmapper_file:
     doc_mapper = json.load(docmapper_file)
 
 # Load the CSV file containing document details
 try:
-    documents_df = pd.read_csv(csv_file_path, delimiter=',', quotechar='"')
+    documents_df = pd.read_csv(scraped_articles_path, encoding='utf-8', quoting=csv.QUOTE_ALL)
     documents_df.set_index('url', inplace=True)
 except pd.errors.ParserError as e:
     print(f"Error reading CSV file: {e}")
@@ -132,6 +138,7 @@ def get_results(query):
         futures = [executor.submit(retrieve_doc_info, doc_id, results) for score, doc_id in sorted_docs]
         for future in futures:
             results.append(future.result())
+    
     all_tags = set()
     for result in results:
         tags = result.get("tags", "")
@@ -150,10 +157,16 @@ def retrieve_word_docs(word, words):
             return
 
         barrel_number = word_id // 1000
-        offset_file = f'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\Search-Engine-DSA NEW\\offset_barrels\\inverted_barrel_{barrel_number}.bin'
+        #Ushba 
+        offset_file = f'C:\\Users\\DELL\\Desktop\\offset_barrels\\inverted_barrel_{barrel_number}.bin'
+        # Dansh
+        #offset_file = f'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\Search-Engine-DSA NEW\\offset_barrels\\inverted_barrel_{barrel_number}.bin'
         offsets = ib.load_offsets(offset_file)
 
-        file_name = f'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\Search-Engine-DSA NEW\\inverted_barrels\\inverted_barrel_{barrel_number}.csv'
+        # Ushba
+        file_name = f'C:\\Users\\DELL\\Desktop\\inverted_barrels\\inverted_barrel_{barrel_number}.csv'
+        # Dansh
+        #file_name = f'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\Search-Engine-DSA NEW\\inverted_barrels\\inverted_barrel_{barrel_number}.csv'
         offset = offsets[word_id % 1000]
 
         with open(file_name, mode='r', newline='', encoding='utf-8') as file:
@@ -195,6 +208,7 @@ def retrieve_doc_info(doc_id, results):
             "timestamp": sanitize_value(doc_details.get('timestamp', 'Unknown Timestamp')),
             "tags": sanitize_value(doc_details.get('tags', 'No Tags'))
         })
+        print(results[0])
     except Exception as e:
         pass
 def sanitize_value(value, default_value='Unknown'):
@@ -203,6 +217,7 @@ def sanitize_value(value, default_value='Unknown'):
         return default_value
     # Return the original value if it's not NaN or null
     return value or default_value
+
 @app.route('/addDocument', methods=['POST'])
 def add_document():
     try:
@@ -217,7 +232,11 @@ def add_document():
             return jsonify({"error": "Document with this URL already exists."}), 400
 
         # Define the path for saving the JSON files
-        json_directory = r"C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\Search-Engine-DSA\new_docs\json_files"
+        # Ushba
+        json_directory = r'C:\Users\DELL\Desktop\Search-Engine-DSA\new_docs\json_files'
+
+        # Dansh
+        #json_directory = r"C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\Search-Engine-DSA\new_docs\json_files"
 
         # Ensure the directory exists
         os.makedirs(json_directory, exist_ok=True)
