@@ -1,5 +1,6 @@
+import os
+import ujson
 import json
-import nltk
 import os
 import csv
 import re
@@ -62,7 +63,7 @@ def preprocess_word(word):
     if word and word not in stop_words:  # Remove stopwords and empty words
         lemmatized_word = lemmatize_with_pos(word)
         
-        if len(lemmatized_word) == 1:
+        if len(lemmatized_word) == 1:  
             return word  # Return the original word if after lematization it is a single word
         
         return lemmatized_word
@@ -71,20 +72,31 @@ def preprocess_word(word):
 
 ### Loading Files Methods ###
 # Function to load lexicon in memory
+
 def load_lexicon(lexicon_json_file):
+    """
+    Load the lexicon from a JSON file using ujson and update the global word_id_counter.
+    If the file doesn't exist or is invalid, return an empty lexicon.
+    """
     global word_id_counter
+    word_id_counter = 1  # Default starting value for word IDs
+
     if os.path.exists(lexicon_json_file):
         try:
             with open(lexicon_json_file, 'r', encoding='utf-8') as file:
-                lexicon = json.load(file)
-                if lexicon:  # Ensure lexicon is not empty
-                    word_id_counter = list(lexicon.values())[-1]  # Get the last wordID
+                lexicon = ujson.load(file)  # Parse JSON into a dictionary
+                if isinstance(lexicon, dict) and lexicon:  # Ensure it's a non-empty dictionary
+                    word_id_counter = max(lexicon.values())  # Get the highest wordID
                     print(f"The last wordID in the lexicon is: {word_id_counter}")
                     word_id_counter += 1
                 return lexicon
-        except json.JSONDecodeError:
-            print(f"{lexicon_json_file}. Starting with an empty lexicon.")
-    return {}
+        except ValueError:  # ujson raises ValueError for invalid JSON
+            print(f"Invalid JSON in {lexicon_json_file}. Starting with an empty lexicon.")
+        except Exception as e:
+            print(f"An error occurred while loading the lexicon: {e}. Starting with an empty lexicon.")
+    
+    return {}  # Return an empty lexicon if the file doesn't exist or is invalid
+
 
 # Function to load the docID to URL mapping in memory
 def load_read_docs(doc_mapper_json):
@@ -94,14 +106,13 @@ def load_read_docs(doc_mapper_json):
     if os.path.exists(doc_mapper_json):
         try:
             with open(doc_mapper_json, 'r', encoding='utf-8') as file:
-                read_docs = json.load(file)
+                read_docs = ujson.load(file)
                 if read_docs:
                     doc_id_counter = list(read_docs.keys())[-1]  # get the last docID assigned
-                    print("cn dhokaa")
                     doc_id_counter = int(doc_id_counter)
                     print(f"The last docID read is: {doc_id_counter}")
                     doc_id_counter += 1
-        except json.JSONDecodeError:
+        except ujson.JSONDecodeError:
             print(f"{doc_mapper_json}. Starting with no read docs.")
     
     return read_docs
@@ -185,7 +196,7 @@ def add_word_to_forwardBarrels(docID, wordID, word_hit, forward_barrels):
 # Add docIID : url mapping
 def add_doc_to_docMapper(url, read_docs):
     global doc_id_counter
-    print("cn dhoka anoosheh ")
+    
     doc_id_counter = int(doc_id_counter)
     read_docs[doc_id_counter] = url
     doc_id_counter += 1  # Increment doc_id_counter to generate a new docID
