@@ -25,14 +25,25 @@ export function ArticleList({ articles }) {
                         />
                         <div className="flex flex-col flex-1">
                             <h2 className="text-xl font-bold text-brown-800 dark:text-beige-100 mb-2">
-                                {typeof article.title === 'object' ? JSON.stringify(article.title) : article.title || "Untitled"}
+                                <a
+                                    href={
+                                        typeof article.url === 'object'
+                                            ? JSON.stringify(article.url)
+                                            : article.url || "#"
+                                    }
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    {typeof article.title === 'object' ? JSON.stringify(article.title) : article.title || "Untitled"}
+                                </a>
                             </h2>
+
                             <p className="text-brown-600 dark:text-beige-300 mb-4 line-clamp-2">
                                 {typeof article.text === 'object' ? JSON.stringify(article.text) : article.text || "No preview available"}
                             </p>
                             <div className="mt-auto">
                                 <span className="text-sm text-brown-500 dark:text-beige-200">
-                                    By {typeof article.authors === 'object' ? JSON.stringify(article.authors) : article.authors || "Unknown Author"}
+                                    {typeof article.authors === 'object' ? JSON.stringify(article.author) : article.authors || "Unknown Author"}
                                 </span>
                                 <br />
                                 <span className="text-sm text-grey-500 dark:text-grey-200">
@@ -42,8 +53,8 @@ export function ArticleList({ articles }) {
                         </div>
                     </article>
                 ))
-                
-                
+
+
             )}
         </div>
     );

@@ -9,7 +9,7 @@ import { Pagination } from '../components/Pagination';
 import { SearchBar } from '../components/SearchBar';
 import { SearchHeader } from '../components/SearchHeader';
 import { SearchTags } from '../components/SearchTags';
-import { SortOptions } from '../components/sortOptions';
+import { SortOptions } from '../components/SortOptions';
 import { jokes } from '../data/jokes';
 import { cleanTag } from '../utils/stringUtils';
 
@@ -55,20 +55,7 @@ function SearchResultsPage() {
         return results;
     }
   };
-  const cleanData = (data) => {
-    // Recursively traverse and clean the object
-    if (Array.isArray(data)) {
-      return data.map(cleanData); // Clean each item in the array
-    } else if (data && typeof data === 'object') {
-      return Object.fromEntries(
-        Object.entries(data).map(([key, value]) => [
-          key,
-          value === null || (typeof value === 'number' && isNaN(value)) ? null : cleanData(value),
-        ])
-      );
-    }
-    return data; // Return primitives as-is
-  };
+
   const fetchResults = async (query) => {
     if (!query.trim()) {
       setError('Please enter a valid search query.');
@@ -93,8 +80,8 @@ function SearchResultsPage() {
       const endTime = performance.now();
       setSearchTime((endTime - startTime) / 1000);
       console.log(response.data);
-      const data=response.data;
-      if (data.results.length === 0) {
+      const data = response.data;
+      if (!data.results || data.results.length === 0) {
         setError('No results found.');
         setSearchResults([]);
         setTags([]);
@@ -253,15 +240,16 @@ function SearchResultsPage() {
           joke={currentJoke}
           onLike={() => setIsModalOpen(false)}
           onDislike={() => setIsModalOpen(false)}
-          onClose={() => setIsModalOpen(false)}
         />
       )}
 
-      <AddDocumentModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onSuccess={handleAddSuccess}
-      />
+      {isAddModalOpen && (
+        <AddDocumentModal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          onSuccess={handleAddSuccess}
+        />
+      )}
     </div>
   );
 }

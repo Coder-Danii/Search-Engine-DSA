@@ -146,3 +146,42 @@ def process_forward_barrels(forward_barrel_files, inverted_barrels_dir, offset_b
             future.result()
 
     print("Inverted barrels created successfully.")
+def get_row_by_word_id(word_id, inverted_barrel_file, offset_file):
+    offsets = load_offsets(offset_file)  # Load all offsets
+    print (str(word_id // 1000))
+    word_id = word_id % 1000
+
+    if word_id >= len(offsets):
+        print(f"Error: word ID {word_id} is out of range.")
+        return None
+    try:
+        # Get the byte offset for the given word_id
+        offset = offsets[word_id]
+        offsets.clear()
+        # Read the row from the CSV file using the offset
+        with open(inverted_barrel_file, mode='r', encoding='utf-8') as csv_file:
+            csv_file.seek(offset)
+            row = csv_file.readline().strip()  # Read the row and remove trailing whitespace
+        print(row)
+        return row
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        return None
+
+get_row_by_word_id(820681, r'Search-Engine-DSA NEW\inverted_barrels\inverted_barrel_820.csv', r'Search-Engine-DSA NEW\offset_barrels\inverted_barrel_820.bin')
+
+# def create_offsets_for_all_inverted_barrels(inverted_barrels_dir, offset_barrels_dir):
+#     """Iterates over all inverted barrels and creates offset barrels."""
+#     os.makedirs(offset_barrels_dir, exist_ok=True)
+    
+#     for file_name in os.listdir(inverted_barrels_dir):
+#         if file_name.startswith('inverted_barrel_') and file_name.endswith('.csv'):
+#             input_file = os.path.join(inverted_barrels_dir, file_name)
+#             barrel_number = file_name.split('_')[-1].split('.')[0]
+#             output_file = os.path.join(offset_barrels_dir, f'inverted_barrel_{barrel_number}.bin')
+#             create_offsets(input_file, output_file)
+# # Example usage
+
+# inverted_barrels_dir = r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\inverted_barrels'
+# offset_barrels_dir = r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\offset_barrels'
+# create_offsets_for_all_inverted_barrels(inverted_barrels_dir, offset_barrels_dir)

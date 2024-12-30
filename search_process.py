@@ -1,3 +1,4 @@
+import math
 from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, request, jsonify
 import csv
@@ -13,7 +14,7 @@ from nltk.tokenize import word_tokenize
 import file_paths as file
 import os
 import file_paths
-import index_new_doc as scraping
+import index_new_doc
 
 lemmatizer = WordNetLemmatizer()
 lb.preprocess_word('apple')
@@ -25,14 +26,9 @@ app = Flask(__name__)
 CORS(app)
 
 # Paths for files
-#Ushba
-docmapper_path = file_paths.docMapper_file
-csv_file_path = r'C:\Users\DELL\Desktop\University\Data Structures and Algorithms\Project\Medium Articles\medium_articles.csv'
-scraped_articles_path = file_paths.scraped_articles_file
-# Dansh
-#docmapper_path = r"C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\Search-Engine-DSA\docmapper.json"
-#csv_file_path = r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\medium_articles.csv' 
-#scraped_articles_path = r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\scraped_medium_articles.csv'
+docmapper_path = r"C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\Search-Engine-DSA NEW\\Search-Engine-DSA\\docmapper.json"
+csv_file_path = r'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\medium_articles.csv' 
+scraped_articles_path = r'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\Search-Engine-DSA NEW\\scraped_medium_articles.csv'
 
 # Load docmapper.json once during initialization
 with open(docmapper_path, 'r', encoding='utf-8') as docmapper_file:
@@ -74,8 +70,8 @@ def search():
         results, total_docs, tags = get_results(query)
         return jsonify({
             "total_results": total_docs,
-            "results": results,
-            "tags": tags
+            "results": results if results else [],
+            "tags": tags if tags else []
         }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -93,7 +89,6 @@ def process_query(query):
                 processed_tokens.append(processed_word)
 
     return processed_tokens
-
 
 # Get search results
 def get_results(query):
@@ -130,14 +125,14 @@ def get_results(query):
             unique_result_docs.append((score, doc_id))
             result_docs_set.add(doc_id)
 
-    sorted_docs = sorted(unique_result_docs, key=lambda x: -x[0])
+    sorted_docs = sorted(unique_result_docs, key=lambda x: x[0])
 
     # Get detailed document info for each sorted document
     results = []
     with ThreadPoolExecutor() as executor:
         futures = [executor.submit(retrieve_doc_info, doc_id, results) for score, doc_id in sorted_docs]
         for future in futures:
-            results.append(future.result())
+            future.result()
     
     all_tags = set()
     for result in results:
@@ -157,16 +152,10 @@ def retrieve_word_docs(word, words):
             return
 
         barrel_number = word_id // 1000
-        #Ushba 
-        offset_file = f'C:\\Users\\DELL\\Desktop\\offset_barrels\\inverted_barrel_{barrel_number}.bin'
-        # Dansh
-        #offset_file = f'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\Search-Engine-DSA NEW\\offset_barrels\\inverted_barrel_{barrel_number}.bin'
+        offset_file = f'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\Search-Engine-DSA NEW\\offset_barrels\\inverted_barrel_{barrel_number}.bin'
         offsets = ib.load_offsets(offset_file)
 
-        # Ushba
-        file_name = f'C:\\Users\\DELL\\Desktop\\inverted_barrels\\inverted_barrel_{barrel_number}.csv'
-        # Dansh
-        #file_name = f'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\Search-Engine-DSA NEW\\inverted_barrels\\inverted_barrel_{barrel_number}.csv'
+        file_name = f'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\Search-Engine-DSA NEW\\inverted_barrels\\inverted_barrel_{barrel_number}.csv'
         offset = offsets[word_id % 1000]
 
         with open(file_name, mode='r', newline='', encoding='utf-8') as file:
@@ -192,6 +181,7 @@ def retrieve_word_docs(word, words):
 
 # Retrieve document info
 def retrieve_doc_info(doc_id, results):
+    print(doc_id)
     global scraped_articles_df  # Declare as global
     try:
         # Convert doc_id to integer
@@ -199,21 +189,31 @@ def retrieve_doc_info(doc_id, results):
         
         if doc_id in scraped_articles_df.index:
             doc_details = scraped_articles_df.loc[doc_id].to_dict()
-            results.append({
-            "doc_id": doc_id,
-            "title": sanitize_value(doc_details.get('title', 'Unknown Title')),
-            "text": sanitize_value(doc_details.get('first_two_lines', 'No Content Available')),
-            "url": sanitize_value(doc_details.get('url', 'Unknown URL')),
-            "authors": "Disney",
-            "timestamp": sanitize_value(doc_details.get('timestamp', 'Unknown Timestamp')),
-            "tags": sanitize_value(doc_details.get('tags', 'No Tags'))
-        })
-        print(results[0])
+            if doc_details is None:
+                return  # Skip if doc_details is None
+
+            result = {
+                "doc_id": doc_id,
+                "title": sanitize_value(doc_details.get('title', 'Unknown Title')),
+                "text": sanitize_value(doc_details.get('first_two_lines', 'No Content Available')),
+                "url": sanitize_value(doc_details.get('url', 'Unknown URL')),
+                "authors": sanitize_value(doc_details.get('author', 'Unknown URL')),
+                "timestamp": sanitize_value(doc_details.get('timestamp', 'Unknown Timestamp')),
+                "tags": sanitize_value(doc_details.get('tags', 'No Tags'))
+            }
+            results.append(result)
+            print(result)
+            return result
     except Exception as e:
-        pass
+        print(f"Error while retrieving document info for doc_id {doc_id}: {str(e)}")
+        return None
+
+
+
 def sanitize_value(value, default_value='Unknown'):
-    # Check if the value is NaN or null (as strings) and return the default_value
-    if isinstance(value, str) and (value.lower() == "nan" or value.lower() == "null"):
+    # Check if the value is NaN, None, or specific string representations
+    if value is None or (isinstance(value, float) and math.isnan(value)) or \
+        (isinstance(value, str) and value.lower() in {"nan", "null"}):
         return default_value
     # Return the original value if it's not NaN or null
     return value or default_value
@@ -231,12 +231,7 @@ def add_document():
         if data['url'] in doc_mapper:
             return jsonify({"error": "Document with this URL already exists."}), 400
 
-        # Define the path for saving the JSON files
-        # Ushba
-        json_directory = r'C:\Users\DELL\Desktop\Search-Engine-DSA\new_docs\json_files'
-
-        # Dansh
-        #json_directory = r"C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\Search-Engine-DSA\new_docs\json_files"
+        json_directory = r"C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\Search-Engine-DSA\new_docs\json_files"
 
         # Ensure the directory exists
         os.makedirs(json_directory, exist_ok=True)
@@ -248,9 +243,16 @@ def add_document():
         # Save the document content as a JSON file
         with open(json_file_path, 'w', encoding='utf-8') as json_file:
             json.dump(data, json_file, indent=4)
-
+        
+        index_new_doc.index_new_doc(json_file_path, file.new_doc_output_dir)
+        global lexicon
+        lexicon = lb.load_lexicon(file.lexicon_file)
+        global scraped_articles_df 
+        scraped_articles_df = pd.read_csv(scraped_articles_path, delimiter=',', quotechar='"')
+        scraped_articles_df.set_index('docID', inplace=True)
+        scraped_articles_df.index = scraped_articles_df.index.astype(int)  # Ensure docID is integer
         return jsonify({"message": "Document added and saved as JSON file successfully."}), 200
-
+    
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
