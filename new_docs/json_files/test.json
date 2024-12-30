@@ -1,11 +1,8 @@
-[
-    {
-      "title": "Understanding JSON",
-      "text": "JSON is a lightweight data-interchange format.",
-      "url": "https://example.com/json-guide",
-      "authors": "John Doe",
-      "timestamp": "2024-12-28T10:00:00Z",
-      "tags": "data, json, programming"
-    }
-  ]
-  
+{
+    "title": "Understanding JSON",
+    "text": "JSON is a lightweight data-interchange format.",
+    "url": "https://example.com/json-guide",
+    "authors": "John Doe",
+    "timestamp": "2024-12-28T10:00:00Z",
+    "tags": "data, json, programming"
+}

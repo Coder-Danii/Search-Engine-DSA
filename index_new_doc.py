@@ -7,6 +7,7 @@ from scraping import scrap_docs
 
 
 output_directory = file.new_doc_output_dir
+
 def json_to_csv(json_file_path, output_directory):
     # Ensure the input file exists
     if not os.path.exists(json_file_path):
@@ -23,12 +24,9 @@ def json_to_csv(json_file_path, output_directory):
     with open(json_file_path, 'r', encoding='utf-8') as json_file:
         data = json.load(json_file)
 
-    # Check if the data is a list or a dictionary containing a list
+    # Check if the JSON data is a dictionary (single record)
     if isinstance(data, dict):
-        key = next(iter(data.keys()))
-        data_list = data[key]
-    elif isinstance(data, list):
-        data_list = data
+        data_list = [data]
     else:
         print("Unsupported JSON structure.")
         return None
@@ -48,7 +46,7 @@ def json_to_csv(json_file_path, output_directory):
         for record in data_list:
             csv_writer.writerow(record.values())
 
-    print(f"CSV file '{csv_file_path}' {'updated' if file_exists else 'created'} successfully.")
+    print(f"CSV file '{csv_file_path}' {'updated' if file_exists else 'created'} successfully.") 
     return csv_file_path
 
 
@@ -63,6 +61,4 @@ def index_new_doc(json_file_path, output_directory):
     scrap_docs(dataset_file)
 
 
-#json_file_path = r'C:\Users\DELL\Desktop\Search-Engine-DSA\new_docs\json_files\test.json'
-
-#index_new_doc(json_file_path, output_directory)
+#index_new_doc(r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\Search-Engine-DSA\new_docs\json_files\test.json', output_directory)

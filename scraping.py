@@ -6,17 +6,17 @@ import csv
 def scrap_docs(dataset_file):
     data_iter=pd.read_csv(dataset_file, encoding='utf-8',iterator=True, chunksize=1)
     # Load the docMapper JSON
-    with open('docmapper.json', 'r', encoding='utf-8') as json_file:
+    with open(r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\Search-Engine-DSA\docmapper.json', 'r', encoding='utf-8') as json_file:
         doc_mapper = json.load(json_file)
 
     # Load the medium_articles.csv iterator
 
     # Check if the file already exists
-    if not os.path.exists('scraped_medium_articles.csv'):
+    if not os.path.exists(r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\scraped_medium_articles.csv'):
         # Create the output CSV file with headers
-        with open('scraped_medium_articles.csv', 'w', newline='', encoding='utf-8') as output_file:
-            fieldnames = ['docID', 'url', 'title', 'first_two_lines', 'author', 'tags', 'timestamp']
-            writer = csv.DictWriter(output_file, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
+        with open(r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\scraped_medium_articles.csv', 'w', newline='', encoding='utf-8') as output_file:
+            writer = csv.DictWriter(output_file, fieldnames=['docID', 'url', 'title', 'first_two_lines', 'author', 'tags', 'timestamp']
+            , quoting=csv.QUOTE_ALL)
             writer.writeheader()
     else:
         print("File already exists.")
@@ -43,8 +43,8 @@ def scrap_docs(dataset_file):
         timestamp = str(row['timestamp']).split(' ')[0]  # Convert to string and extract only the date part (YYYY-MM-DD)
 
         # Write the processed row to the output CSV
-        with open('scraped_medium_articles.csv', 'a', newline='', encoding='utf-8') as output_file:
-            writer = csv.DictWriter(output_file, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
+        with open(r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\scraped_medium_articles.csv', 'a', newline='', encoding='utf-8') as output_file:
+            writer = csv.DictWriter(output_file, fieldnames=['docID', 'url', 'title', 'first_two_lines', 'author', 'tags', 'timestamp'], quoting=csv.QUOTE_ALL)
             writer.writerow({
                 'docID': doc_id,
                 'url': url,

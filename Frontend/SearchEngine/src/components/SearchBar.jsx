@@ -51,17 +51,22 @@ export function SearchBar({ setSearchQuery, searchQuery, fetchResults, setQuery,
     <div className="relative w-full" ref={suggestionsRef}>
       <form onSubmit={handleSubmit} className="w-full">
         <div className="relative">
-          <input
-            type="text"
-            value={localQuery}
-            onChange={handleChange}
-            placeholder="Search..."
-            className="w-full px-4 py-3 pl-12 rounded-full border-2 border-brown-300 dark:border-beige-700 bg-white dark:bg-brown-800 text-brown-900 dark:text-beige-100 focus:outline-none focus:border-brown-500 dark:focus:border-beige-500"style={{ borderRadius: "50px", borderBlockEndColor: "rgb(62 39 29)", borderBlockStartColor:"rgb(62 39 29)", borderBlockEndStyle: "solid", borderBlockEndWidth: "2px"
-            }}
-          />
-          <button type="submit" className="absolute left-3 top-1/2 -translate-y-1/2">
-            <Search className="w-6 h-6 text-brown-400 dark:text-beige-400" />
-          </button>
+        <input
+  type="text"
+  value={localQuery}
+  onChange={handleChange}
+  placeholder="Search..."
+  className="w-full px-5 py-3 pl-16 rounded-full border-2 border-brown-300 dark:border-beige-700 bg-white dark:bg-brown-800 text-brown-900 dark:text-beige-100 focus:outline-none focus:ring-2 focus:ring-brown-500 dark:focus:ring-beige-500 transition-all ease-in-out duration-300"
+  style={{
+    transition: 'all 0.3s ease-in-out',
+    borderRadius: '50px',
+    borderColor: 'rgb(62, 39, 29)',
+  }}
+/>
+<button type="submit" className="absolute left-4 top-1/2 -translate-y-1/2">
+  <Search className="w-6 h-6 text-brown-400 dark:text-beige-400 transition-transform ease-in-out duration-200 hover:scale-110" />
+</button>
+
         </div>
       </form>
 

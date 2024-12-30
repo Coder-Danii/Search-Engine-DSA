@@ -12,19 +12,21 @@ from nltk.tokenize import word_tokenize
 import file_paths as file
 import os
 import file_paths
-import scraping
+import index_new_doc as scraping
 
 lemmatizer = WordNetLemmatizer()
 lb.preprocess_word('apple')
+
+global scraped_articles_df  # Declare as global at the beginning
 
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
 
 # Paths for files
-docmapper_path = r"C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\Search-Engine-DSA NEW\\Search-Engine-DSA\\docmapper.json"
-csv_file_path = r'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\20articles.csv'
-
+docmapper_path = r"C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\Search-Engine-DSA\docmapper.json"
+csv_file_path = r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\medium_articles.csv' 
+scraped_articles_path = r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\scraped_medium_articles.csv'
 # Load docmapper.json once during initialization
 with open(docmapper_path, 'r', encoding='utf-8') as docmapper_file:
     doc_mapper = json.load(docmapper_file)
@@ -40,6 +42,18 @@ except pd.errors.ParserError as e:
 # Increase the CSV field size limit
 csv.field_size_limit(10**7)
 lexicon = lb.load_lexicon(file.lexicon_file)
+
+# Load the scraped articles CSV file
+try:
+    scraped_articles_df = pd.read_csv(scraped_articles_path, delimiter=',', quotechar='"')
+    scraped_articles_df.set_index('docID', inplace=True)
+    scraped_articles_df.index = scraped_articles_df.index.astype(int)  # Ensure docID is integer
+except FileNotFoundError:
+    print(f"File not found: {scraped_articles_path}")
+    scraped_articles_df = pd.DataFrame()  # Create an empty DataFrame to avoid further errors
+except pd.errors.ParserError as e:
+    print(f"Error reading scraped articles CSV file: {e}")
+    # Handle the error appropriately, e.g., log it, raise an exception, etc.
 
 @app.route('/search', methods=['POST'])
 def search():
@@ -119,8 +133,10 @@ def get_results(query):
         thread.join()
 
     for result in results:
-        tags = result.get("tags", "").split(",")
-        all_tags.update(tag.strip() for tag in tags if tag.strip())
+        tags = result.get("tags", "")
+        if isinstance(tags, str):
+            tags = tags.split(",")
+        all_tags.update(str(tag).strip() for tag in tags if str(tag).strip())
 
     return results, len(sorted_docs), list(all_tags)
 
@@ -163,25 +179,24 @@ def retrieve_word_docs(word, words):
 
 # Retrieve document info
 def retrieve_doc_info(doc_id, results):
+    global scraped_articles_df  # Declare as global
     try:
-        doc_url = doc_mapper.get(str(doc_id))
-        if not doc_url:
-            return
-
-        if doc_url in documents_df.index:
-            doc_details = documents_df.loc[doc_url].to_dict()
+        # Convert doc_id to integer
+        doc_id = int(doc_id)
+        
+        if doc_id in scraped_articles_df.index:
+            doc_details = scraped_articles_df.loc[doc_id].to_dict()
             results.append({
                 "doc_id": doc_id,
                 "title": doc_details.get('title', 'Unknown Title'),
-                "text": doc_details.get('text', 'No Content Available'),
-                "url": doc_url,
-                "authors": doc_details.get('authors', 'Unknown Author'),
+                "text": doc_details.get('first_two_lines', 'No Content Available'),
+                "url": doc_details.get('url', 'Unknown URL'),
+                "authors": doc_details.get('author', 'Unknown Author'),
                 "timestamp": doc_details.get('timestamp', 'Unknown Timestamp'),
                 "tags": doc_details.get('tags', 'No Tags')
             })
-
     except Exception as e:
-        print(f"Error while retrieving document info for doc_id {doc_id}: {str(e)}")
+        pass
 
 @app.route('/addDocument', methods=['POST'])
 def add_document():
@@ -209,8 +224,6 @@ def add_document():
         # Save the document content as a JSON file
         with open(json_file_path, 'w', encoding='utf-8') as json_file:
             json.dump(data, json_file, indent=4)
-
-        scraping.index_new_doc(json_file_path, file_paths.new_doc_output_dir)
 
         return jsonify({"message": "Document added and saved as JSON file successfully."}), 200
 

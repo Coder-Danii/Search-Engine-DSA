@@ -114,25 +114,35 @@ def load_offsets(offset_file):
         print(f"Error loading offsets: {e}")
     return offsets
 
+def process_forward_barrel(forward_barrel_file, inverted_barrels_dir, offset_barrels_dir):
+    """Process a single forward barrel file to create an inverted barrel and its offsets."""
+    inverted_barrel = create_inverted_barrel(forward_barrel_file)
+    barrel_number = os.path.basename(forward_barrel_file).split('_')[-1].split('.')[0]
+    inverted_barrel_file = os.path.join(inverted_barrels_dir, f'inverted_barrel_{barrel_number}.csv')
+    offset_file = os.path.join(offset_barrels_dir, f'inverted_barrel_{barrel_number}.bin')
+    
+    print(f"Processing forward barrel: {forward_barrel_file}")
+    print(f"Inverted barrel file: {inverted_barrel_file}")
+    print(f"Offset file: {offset_file}")
+
+    save_inverted_barrel(inverted_barrel, inverted_barrel_file)
+    create_offsets(inverted_barrel_file, offset_file)
+
+    print(f"Processed forward barrel: {forward_barrel_file}")
+
 def process_forward_barrels(forward_barrel_files, inverted_barrels_dir, offset_barrels_dir):
     """Process forward barrels to create inverted barrels."""
     os.makedirs(inverted_barrels_dir, exist_ok=True)
     os.makedirs(offset_barrels_dir, exist_ok=True)
 
-    for forward_barrel_file in forward_barrel_files:
-        # Process each forward barrel file
-        inverted_barrel = create_inverted_barrel(forward_barrel_file)
-        barrel_number = os.path.basename(forward_barrel_file).split('_')[-1].split('.')[0]
-        inverted_barrel_file = os.path.join(inverted_barrels_dir, f'inverted_barrel_{barrel_number}.csv')
-        offset_file = os.path.join(offset_barrels_dir, f'inverted_barrel_{barrel_number}.bin')
+    # Use a thread pool to process multiple forward barrels concurrently
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = []
+        for forward_barrel_file in forward_barrel_files:
+            futures.append(executor.submit(process_forward_barrel, forward_barrel_file, inverted_barrels_dir, offset_barrels_dir))
         
-        print(f"Processing forward barrel: {forward_barrel_file}")
-        print(f"Inverted barrel file: {inverted_barrel_file}")
-        print(f"Offset file: {offset_file}")
-
-        save_inverted_barrel(inverted_barrel, inverted_barrel_file)
-        create_offsets(inverted_barrel_file, offset_file)
-
-        print(f"Processed forward barrel: {forward_barrel_file}")
+        # Wait for all threads to complete
+        for future in futures:
+            future.result()
 
     print("Inverted barrels created successfully.")
