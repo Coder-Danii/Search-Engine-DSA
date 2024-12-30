@@ -11,8 +11,8 @@
 - **Data Set**: 190k+ Medium Articles from Kaggle
 
 ## Technologies Used
-- **Backend**: Python (Flask), SQLite/MySQL (Database)
-- **Frontend**: React
+- **Backend**: Python (Flask)
+- **Frontend**: React js
 - **Data Structures**: Lexicon, Forward Index, Inverted Index, Offset Barrel
 - **Other**: CSV, JSON for data storage, threading for efficient data processing
 
