@@ -99,7 +99,7 @@ def get_results(query):
         raise ValueError("Query is empty")
 
     words = {}
-    
+
     # Use a thread pool to retrieve documents for each word in parallel
     with ThreadPoolExecutor() as executor:
         futures = [executor.submit(retrieve_word_docs, word, words) for word in query_tokens]
@@ -129,10 +129,9 @@ def get_results(query):
     # Get detailed document info for each sorted document
     results = []
     with ThreadPoolExecutor() as executor:
-        futures = [executor.submit(retrieve_doc_info, doc_id) for score, doc_id in sorted_docs]
+        futures = [executor.submit(retrieve_doc_info, doc_id, results) for score, doc_id in sorted_docs]
         for future in futures:
             results.append(future.result())
-
     all_tags = set()
     for result in results:
         tags = result.get("tags", "")
