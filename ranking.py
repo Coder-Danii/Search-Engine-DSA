@@ -1,10 +1,12 @@
 from sortedcontainers import SortedList
+import numpy as np
+from concurrent.futures import ThreadPoolExecutor
 
 def rank_docs(docs, intersections):
-    added = [False for _ in range(6)]  # Prevents bonuses from stacking
+    added = np.zeros(6, dtype=bool)  # Prevents bonuses from stacking
     top_docs = SortedList()  # Stores documents in sorted order
 
-    for doc in docs:
+    def process_doc(doc):
         doc_id = doc[0]
         hit_list = doc[1]
         frequency = doc[2]  # Use frequency instead of hitlist length
@@ -23,25 +25,24 @@ def rank_docs(docs, intersections):
             hit = hit_list[i]
 
             # Match the hit type using modulo operation
-            match hit[0]:
-                case 3:  # TITLE
-                    if not added[3]:
-                        this_score += 50
-                        added[3] = True
-                case 0:  # TEXT (skipped after handling non-TEXT)
-                    if step == 1:  # Forward iteration
-                        i = len(hit_list) - 1
-                        step = -1  # Switch to backward iteration
-                    else:
-                        break  # Stop after TEXT hits are encountered
-                case 2:  # TAGS
-                    if not added[2]:
-                        this_score += 30
-                        added[2] = True
-                case 1:  # AUTHORS
-                    if not added[1]:
-                        this_score += 20
-                        added[1] = True
+            if hit[0] == 3:  # TITLE
+                if not added[3]:
+                    this_score += 50
+                    added[3] = True
+            elif hit[0] == 0:  # TEXT (skipped after handling non-TEXT)
+                if step == 1:  # Forward iteration
+                    i = len(hit_list) - 1
+                    step = -1  # Switch to backward iteration
+                else:
+                    break  # Stop after TEXT hits are encountered
+            elif hit[0] == 2:  # TAGS
+                if not added[2]:
+                    this_score += 30
+                    added[2] = True
+            elif hit[0] == 1:  # AUTHORS
+                if not added[1]:
+                    this_score += 20
+                    added[1] = True
 
             # Move to the next hit
             if hit[0] != 1:  # Avoid moving when encountering TEXT (handled above)
@@ -53,11 +54,13 @@ def rank_docs(docs, intersections):
         this_score *= multiplier
 
         # Add score and document ID to the SortedList (negative score for descending order)
-        top_docs.add((this_score, doc_id))
+        top_docs.add((-this_score, doc_id))
+
+    # Use a thread pool to process documents concurrently
+    with ThreadPoolExecutor() as executor:
+        executor.map(process_doc, docs)
 
     return top_docs
-
-
 
 # Computes intersections of document lists for multi-word queries
 def intersect(doc_lists):
@@ -79,12 +82,10 @@ def intersect(doc_lists):
         intersections.append(this_intersection)
     return intersections
 
-
 # Checks if a hit list is relevant (has hits other than TEXT)
 def is_relevant(hit_list):
     # Check if any hit type (hit[0]) is not TEXT (which is represented by hit_type 1)
     return any(hit[0] != 1 for hit in hit_list)
-
 
 # Multiplier based on intersection level
 def intersection_multiplier(doc, intersections):
@@ -95,11 +96,9 @@ def intersection_multiplier(doc, intersections):
             return (i + 1) * 2
     return 1
 
-
 # Parses the hitlist from the CSV format
 def parse_hitlist(hitlist_str):
     return [(int(hit.split(',')[0]), int(hit.split(',')[1])) for hit in hitlist_str.split('|')]
-
 
 # Example utility function to process document lists
 def process_docs(doc_data):

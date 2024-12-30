@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, request, jsonify
 import csv
 import pandas as pd
@@ -87,6 +88,7 @@ def process_query(query):
 
     return processed_tokens
 
+
 # Get search results
 def get_results(query):
     global lexicon
@@ -97,41 +99,41 @@ def get_results(query):
         raise ValueError("Query is empty")
 
     words = {}
-    threads = []
+    
+    # Use a thread pool to retrieve documents for each word in parallel
+    with ThreadPoolExecutor() as executor:
+        futures = [executor.submit(retrieve_word_docs, word, words) for word in query_tokens]
+        for future in futures:
+            future.result()
 
-    for word in query_tokens:
-        this_thread = th.Thread(target=retrieve_word_docs, args=(word, words))
-        threads.append(this_thread)
-        this_thread.start()
-
-    for thread in threads:
-        thread.join()
-
+    # Compute intersections for all retrieved document lists
     doc_lists = [docs for docs in words.values() if docs]
     intersections = rk.intersect(doc_lists)
-    ranked_docs = rk.rank_docs([doc for docs in words.values() for doc in docs], intersections)
 
+    # Rank documents for each word based on intersections
+    ranked_docs = []
+    for docs in words.values():
+        if docs:
+            ranked_docs.extend(rk.rank_docs(docs, intersections))
+
+    # Remove duplicates from ranked documents (based on doc_id)
     result_docs_set = set()
     unique_result_docs = []
     for score, doc_id in ranked_docs:
-        if (doc_id not in result_docs_set):
+        if doc_id not in result_docs_set:
             unique_result_docs.append((score, doc_id))
             result_docs_set.add(doc_id)
 
     sorted_docs = sorted(unique_result_docs, key=lambda x: -x[0])
 
+    # Get detailed document info for each sorted document
     results = []
+    with ThreadPoolExecutor() as executor:
+        futures = [executor.submit(retrieve_doc_info, doc_id) for score, doc_id in sorted_docs]
+        for future in futures:
+            results.append(future.result())
+
     all_tags = set()
-    threads = []
-
-    for score, doc_id in sorted_docs:
-        this_thread = th.Thread(target=retrieve_doc_info, args=(doc_id, results))
-        threads.append(this_thread)
-        this_thread.start()
-
-    for thread in threads:
-        thread.join()
-
     for result in results:
         tags = result.get("tags", "")
         if isinstance(tags, str):
@@ -159,7 +161,6 @@ def retrieve_word_docs(word, words):
             file.seek(offset)
             reader = csv.reader(file)
             row = next(reader)
-
             doc_ids = row[1].split('|')
             frequencies = row[2].split('|')
             hitlists = row[3].split('|')
