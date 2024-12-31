@@ -26,9 +26,9 @@ app = Flask(__name__)
 CORS(app)
 
 # Paths for files
-docmapper_path = r"C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\Search-Engine-DSA NEW\\Search-Engine-DSA\\docmapper.json"
-csv_file_path = r'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\medium_articles.csv' 
-scraped_articles_path = r'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\Search-Engine-DSA NEW\\scraped_medium_articles.csv'
+docmapper_path = file_paths.docMapper_file
+csv_file_path = file_paths.dataset_file
+scraped_articles_path = file_paths.scraped_articles_file
 
 # Load docmapper.json once during initialization
 with open(docmapper_path, 'r', encoding='utf-8') as docmapper_file:
@@ -44,7 +44,7 @@ except pd.errors.ParserError as e:
 
 # Increase the CSV field size limit
 csv.field_size_limit(10**7)
-lexicon = lb.load_lexicon(file.lexicon_file)
+lexicon = lb.load_lexicon(file_paths.lexicon_file)
 
 # Load the scraped articles CSV file
 try:
@@ -152,10 +152,10 @@ def retrieve_word_docs(word, words):
             return
 
         barrel_number = word_id // 1000
-        offset_file = f'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\Search-Engine-DSA NEW\\offset_barrels\\inverted_barrel_{barrel_number}.bin'
+        offset_file = file_paths.offset_barrel(barrel_number)
         offsets = ib.load_offsets(offset_file)
 
-        file_name = f'C:\\Users\\Sohail\\Desktop\\THIRD SEMESTER\\DSA\\FINAL PROJECT DSA\\LEXICON\\Search-Engine-DSA NEW\\inverted_barrels\\inverted_barrel_{barrel_number}.csv'
+        file_name = file_paths.inverted_barrel(barrel_number)
         offset = offsets[word_id % 1000]
 
         with open(file_name, mode='r', newline='', encoding='utf-8') as file:
@@ -181,7 +181,6 @@ def retrieve_word_docs(word, words):
 
 # Retrieve document info
 def retrieve_doc_info(doc_id, results):
-    print(doc_id)
     global scraped_articles_df  # Declare as global
     try:
         # Convert doc_id to integer
@@ -202,7 +201,6 @@ def retrieve_doc_info(doc_id, results):
                 "tags": sanitize_value(doc_details.get('tags', 'No Tags'))
             }
             results.append(result)
-            print(result)
             return result
     except Exception as e:
         print(f"Error while retrieving document info for doc_id {doc_id}: {str(e)}")
@@ -231,8 +229,7 @@ def add_document():
         if data['url'] in doc_mapper:
             return jsonify({"error": "Document with this URL already exists."}), 400
 
-        json_directory = r"C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\Search-Engine-DSA\new_docs\json_files"
-
+        json_directory = file_paths.json_dir
         # Ensure the directory exists
         os.makedirs(json_directory, exist_ok=True)
 
@@ -244,9 +241,9 @@ def add_document():
         with open(json_file_path, 'w', encoding='utf-8') as json_file:
             json.dump(data, json_file, indent=4)
         
-        index_new_doc.index_new_doc(json_file_path, file.new_doc_output_dir)
+        index_new_doc.index_new_doc(json_file_path, file_paths.new_doc_output_dir)
         global lexicon
-        lexicon = lb.load_lexicon(file.lexicon_file)
+        lexicon = lb.load_lexicon(file_paths.lexicon_file)
         global scraped_articles_df 
         scraped_articles_df = pd.read_csv(scraped_articles_path, delimiter=',', quotechar='"')
         scraped_articles_df.set_index('docID', inplace=True)

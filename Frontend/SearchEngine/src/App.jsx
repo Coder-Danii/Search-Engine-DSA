@@ -9,8 +9,6 @@ import SearchResultsPage from './pages/SearchResultsPage';
 function App() {
   return (
     <ThemeProvider>
-              <h1 className='text-xl text-align-center text-[#fffff]'>Made by- Ali Aqdas</h1>
-
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/search" element={<SearchResultsPage />} />

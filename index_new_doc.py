@@ -1,6 +1,7 @@
 import json
 import csv
 import os
+import lexicon_plus_barrels
 from indexing import index_articles
 import file_paths as file
 from scraping import scrap_docs
@@ -51,14 +52,25 @@ def json_to_csv(json_file_path, output_directory):
 
 
 def index_new_doc(json_file_path, output_directory):
+    doc_mapper_file= file.docMapper_file
+    doc_mapper_data = lexicon_plus_barrels.load_read_docs(doc_mapper_file)
     dataset_file = json_to_csv(json_file_path, output_directory)
+    for index, row in doc_mapper_data.iterrows():
+        url = row['url']
+        
+        # Skip processing if URL is already in the read_docs
+        if url not in doc_mapper_data.values():
+            if dataset_file:
+                index_articles(dataset_file)
+            else:
+                print("Failed to create CSV file from JSON.")
+            # after indexing, scrap the document
+            scrap_docs(dataset_file)
+        
+        else: 
+            print(f"Skipping already processed URL: {url}")
 
-    if dataset_file:
-        index_articles(dataset_file)
-    else:
-        print("Failed to create CSV file from JSON.")
-    # after indexing, scrap the document
-    scrap_docs(dataset_file)
+
 
 
 #index_new_doc(r'C:\Users\Sohail\Desktop\THIRD SEMESTER\DSA\FINAL PROJECT DSA\LEXICON\Search-Engine-DSA NEW\Search-Engine-DSA\new_docs\json_files\test.json', output_directory)

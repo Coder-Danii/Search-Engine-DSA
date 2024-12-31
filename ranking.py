@@ -27,7 +27,7 @@ def rank_docs(docs, intersections):
             # Match the hit type using modulo operation
             if hit[0] == 3:  # TITLE
                 if not added[3]:
-                    this_score += 50
+                    this_score += 60
                     added[3] = True
             elif hit[0] == 0:  # TEXT (skipped after handling non-TEXT)
                 if step == 1:  # Forward iteration

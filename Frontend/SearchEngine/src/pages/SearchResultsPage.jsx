@@ -82,7 +82,7 @@ function SearchResultsPage() {
       console.log(response.data);
       const data = response.data;
       if (!data.results || data.results.length === 0) {
-        setError('No results found.');
+        setError('No match found. We’re not perfect, but we’re getting there!');
         setSearchResults([]);
         setTags([]);
         setTotalPages(1);
@@ -107,7 +107,7 @@ function SearchResultsPage() {
         setTags(sortedTags);
       }
     } catch (err) {
-      setError('An error occurred while fetching results.');
+      setError('Yikes! Our search skills are as "mid". Give it another go!');
       console.error(err);
     } finally {
       setLoading(false);
@@ -194,7 +194,7 @@ function SearchResultsPage() {
             <div className="flex items-center gap-4">
               {searchQuery && (
                 <h2 className="text-xl text-brown-800 dark:text-beige-100">
-                  Showing results for "{searchQuery}"
+                  Here are your average results for "{searchQuery}"
                 </h2>
               )}
               {searchTime && (
